@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudVault — Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: { accent: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' } }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp 0.5s ease-out; }
+    @keyframes shake { 10%,90% { transform: translateX(-1px); } 20%,80% { transform: translateX(2px); } 30%,50%,70% { transform: translateX(-3px); } 40%,60% { transform: translateX(3px); } }
+    .shake { animation: shake 0.5s ease-in-out; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.6s linear infinite; }
+  </style>
+</head>
+<body class="bg-gray-950 min-h-screen flex items-center justify-center p-4">
+  <div class="fade-up w-full max-w-sm">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-600/20 mb-4">
+        <svg class="w-8 h-8 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 12.75v3m0 0l-1.5-1.5m1.5 1.5l1.5-1.5"/>
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold text-white">CloudVault</h1>
+      <p class="text-gray-500 text-sm mt-1">Personal Cloud Storage</p>
+    </div>
+
+    <form id="login-form" class="bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-2xl">
+      <div id="error-box" class="hidden mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center"></div>
+
+      <div class="mb-5">
+        <label for="password" class="block text-sm font-medium text-gray-400 mb-2">Password</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="Enter your password"
+          required
+          autofocus
+          class="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent transition-all"
+        >
+      </div>
+
+      <button
+        type="submit"
+        id="submit-btn"
+        class="w-full py-3 px-4 rounded-xl bg-accent-600 hover:bg-accent-500 text-white font-medium transition-all focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        <span id="btn-text">Sign In</span>
+        <svg id="btn-spinner" class="hidden spinner w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      </button>
+    </form>
+
+    <p class="text-center text-gray-600 text-xs mt-6">&copy; CloudVault</p>
+  </div>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const errorBox = document.getElementById('error-box');
+    const submitBtn = document.getElementById('submit-btn');
+    const btnText = document.getElementById('btn-text');
+    const btnSpinner = document.getElementById('btn-spinner');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.classList.add('hidden');
+      submitBtn.disabled = true;
+      btnText.textContent = 'Signing in...';
+      btnSpinner.classList.remove('hidden');
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(new FormData(form)),
+          credentials: 'same-origin',
+          redirect: 'follow',
+        });
+
+        if (res.redirected) {
+          window.location.href = res.url;
+          return;
+        }
+
+        if (res.ok) {
+          window.location.href = '/';
+          return;
+        }
+
+        const data = await res.json().catch(() => ({ error: 'Invalid password' }));
+        errorBox.textContent = data.error || 'Invalid password';
+        errorBox.classList.remove('hidden');
+        form.classList.add('shake');
+        setTimeout(() => form.classList.remove('shake'), 500);
+      } catch {
+        errorBox.textContent = 'Connection error. Please try again.';
+        errorBox.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        btnText.textContent = 'Sign In';
+        btnSpinner.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

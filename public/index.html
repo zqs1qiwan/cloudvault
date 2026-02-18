@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudVault</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: { accent: {50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a'} } } }
+    }
+  </script>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="min-h-screen" style="background:var(--bg-primary);color:var(--text-primary)">
+
+<div x-data="cloudvault()" x-init="init()" @keydown.window="handleKeyboard($event)">
+
+  <!-- HEADER -->
+  <header class="sticky top-0 z-50 border-b" style="background:var(--bg-secondary);border-color:var(--border)">
+    <div class="flex items-center justify-between h-14 px-4">
+      <div class="flex items-center gap-3">
+        <button @click="sidebarOpen = !sidebarOpen" class="md:hidden p-1.5 rounded-lg hover:bg-gray-800">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:var(--accent-soft)">
+            <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
+          </div>
+          <span class="font-semibold text-sm hidden sm:inline">CloudVault</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <div class="hidden sm:flex items-center gap-3 text-xs mr-4" style="color:var(--text-muted)">
+          <span x-text="stats.totalFiles + ' files'"></span>
+          <span>&middot;</span>
+          <span x-text="formatBytes(stats.totalSize)"></span>
+        </div>
+        <button @click="toggleDarkMode()" class="p-2 rounded-lg transition-colors" style="color:var(--text-muted)" :style="'&:hover{background:var(--bg-hover)}'">
+          <svg x-show="darkMode" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
+          <svg x-show="!darkMode" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"/></svg>
+        </button>
+        <button @click="logout()" class="p-2 rounded-lg transition-colors" style="color:var(--text-muted)" title="Logout">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex" style="min-height:calc(100vh - 56px)">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar w-56 flex-shrink-0 border-r p-3 flex flex-col gap-1 overflow-y-auto" :class="{'open': sidebarOpen}" style="background:var(--bg-secondary);border-color:var(--border)">
+      <div class="sidebar-item" :class="{'active': currentFolder === 'root'}" @click="navigateFolder('root')">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>
+        All Files
+      </div>
+      <template x-for="f in folders" :key="f">
+        <div class="sidebar-item" :class="{'active': currentFolder === f}" @click="navigateFolder(f)">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
+          <span x-text="f" class="truncate"></span>
+        </div>
+      </template>
+
+      <div class="mt-auto pt-4 px-2">
+        <div class="text-xs mb-2" style="color:var(--text-muted)">Storage</div>
+        <div class="storage-bar">
+          <div class="fill" :style="'width:' + Math.min((stats.totalSize / (10*1024*1024*1024)) * 100, 100) + '%'"></div>
+        </div>
+        <div class="text-xs mt-1" style="color:var(--text-muted)" x-text="formatBytes(stats.totalSize) + ' used'"></div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 flex flex-col min-w-0">
+
+      <!-- ACTION BAR -->
+      <div class="flex flex-wrap items-center gap-2 p-3 border-b" style="border-color:var(--border)">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb flex items-center gap-1 text-sm mr-auto">
+          <a href="#" @click.prevent="navigateFolder('root')">Home</a>
+          <template x-if="currentFolder !== 'root'">
+            <span class="flex items-center gap-1">
+              <svg class="w-3 h-3" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+              <span x-text="currentFolder"></span>
+            </span>
+          </template>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+            <input type="search" placeholder="Search files..." x-model="searchQuery" @input.debounce.300ms="fetchFiles()" class="pl-9 pr-3 py-1.5 text-sm w-40 sm:w-52">
+          </div>
+
+          <button @click="showNewFolderModal = true" class="btn-secondary text-xs flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
+            <span class="hidden sm:inline">Folder</span>
+          </button>
+
+          <label class="btn-primary text-xs flex items-center gap-1 cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+            <span>Upload</span>
+            <input type="file" multiple class="hidden" @change="handleFileSelect($event)">
+          </label>
+
+          <button @click="view = view === 'grid' ? 'list' : 'grid'" class="p-1.5 rounded-lg" style="color:var(--text-muted);background:var(--bg-tertiary)">
+            <svg x-show="view === 'grid'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/></svg>
+            <svg x-show="view === 'list'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- BULK ACTIONS BAR -->
+      <div x-show="selectedFiles.size > 0" x-transition class="flex items-center gap-3 px-4 py-2 text-sm" style="background:var(--accent-soft)">
+        <span class="font-medium" style="color:var(--accent)" x-text="selectedFiles.size + ' selected'"></span>
+        <button @click="deleteSelected()" class="btn-danger text-xs">Delete</button>
+        <button @click="clearSelection()" class="btn-secondary text-xs">Cancel</button>
+      </div>
+
+      <!-- FILE GRID/LIST -->
+      <div class="flex-1 overflow-y-auto p-4">
+        <!-- Loading -->
+        <div x-show="loading" class="empty-state">
+          <svg class="spinner w-8 h-8 text-accent-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        </div>
+
+        <!-- Empty State -->
+        <div x-show="!loading && filteredFiles.length === 0" class="empty-state">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
+          <p class="text-lg font-medium mb-1">No files yet</p>
+          <p class="text-sm">Drop files here or click Upload to get started</p>
+        </div>
+
+        <!-- Grid View -->
+        <div x-show="!loading && view === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <template x-for="file in filteredFiles" :key="file.id">
+            <div class="file-card p-3" :class="{'selected': selectedFiles.has(file.id)}"
+              @click="selectFile(file.id, $event)" @dblclick="previewFile(file)" @contextmenu.prevent="openContextMenu($event, file)">
+              <div class="check">
+                <div class="w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs" :style="selectedFiles.has(file.id) ? 'background:var(--accent);border-color:var(--accent);color:white' : 'border-color:var(--border-light)'">
+                  <svg x-show="selectedFiles.has(file.id)" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                </div>
+              </div>
+              <div class="w-full aspect-square rounded-lg flex items-center justify-center mb-2 overflow-hidden" style="background:var(--bg-tertiary)">
+                <template x-if="file.type.startsWith('image/')">
+                  <img :src="'/api/files/' + file.id + '/thumbnail'" class="w-full h-full object-cover" loading="lazy" @error="$el.style.display='none';$el.nextElementSibling.style.display='flex'">
+                </template>
+                <span class="text-3xl" x-text="getFileIcon(file.type, file.name)"></span>
+              </div>
+              <p class="text-xs font-medium truncate" x-text="file.name" :title="file.name"></p>
+              <div class="flex items-center justify-between mt-1">
+                <span class="text-xs" style="color:var(--text-muted)" x-text="formatBytes(file.size)"></span>
+                <span x-show="file.shareToken" class="badge badge-shared">shared</span>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- List View -->
+        <div x-show="!loading && view === 'list'" class="rounded-xl overflow-hidden border" style="border-color:var(--border)">
+          <table class="w-full text-sm">
+            <thead>
+              <tr style="background:var(--bg-tertiary)">
+                <th class="text-left py-2 px-3 font-medium w-8">
+                  <input type="checkbox" @change="$event.target.checked ? selectAll() : clearSelection()">
+                </th>
+                <th class="text-left py-2 px-3 font-medium cursor-pointer" @click="toggleSort('name')">Name <span x-show="sortBy==='name'" x-text="sortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="text-left py-2 px-3 font-medium cursor-pointer hidden sm:table-cell" @click="toggleSort('size')">Size <span x-show="sortBy==='size'" x-text="sortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="text-left py-2 px-3 font-medium cursor-pointer hidden md:table-cell" @click="toggleSort('date')">Modified <span x-show="sortBy==='date'" x-text="sortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="text-left py-2 px-3 font-medium hidden lg:table-cell">Status</th>
+                <th class="w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="file in filteredFiles" :key="file.id">
+                <tr class="file-row" :class="{'selected': selectedFiles.has(file.id)}" @click="selectFile(file.id, $event)" @contextmenu.prevent="openContextMenu($event, file)">
+                  <td class="py-2 px-3"><input type="checkbox" :checked="selectedFiles.has(file.id)" @click.stop="toggleSelect(file.id)"></td>
+                  <td class="py-2 px-3">
+                    <div class="flex items-center gap-2">
+                      <span x-text="getFileIcon(file.type, file.name)"></span>
+                      <span class="truncate" x-text="file.name"></span>
+                    </div>
+                  </td>
+                  <td class="py-2 px-3 hidden sm:table-cell" style="color:var(--text-muted)" x-text="formatBytes(file.size)"></td>
+                  <td class="py-2 px-3 hidden md:table-cell" style="color:var(--text-muted)" x-text="formatDate(file.uploadedAt)"></td>
+                  <td class="py-2 px-3 hidden lg:table-cell">
+                    <span x-show="file.shareToken" class="badge badge-shared">shared</span>
+                    <span x-show="file.downloads > 0" class="text-xs ml-1" style="color:var(--text-muted)" x-text="file.downloads + ' dl'"></span>
+                  </td>
+                  <td class="py-2 px-3">
+                    <button @click.stop="openContextMenu($event, file)" class="p-1 rounded" style="color:var(--text-muted)">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z"/></svg>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- DROP ZONE OVERLAY -->
+  <div class="dropzone" :class="{'active': showDropZone}" @drop.prevent="handleDrop($event)" @dragover.prevent @dragleave.prevent="showDropZone = false">
+    <div class="text-center">
+      <svg class="w-16 h-16 mx-auto mb-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+      <p class="text-xl font-semibold text-accent-400">Drop files to upload</p>
+      <p class="text-sm mt-1" style="color:var(--text-muted)" x-text="'to ' + (currentFolder === 'root' ? 'All Files' : currentFolder)"></p>
+    </div>
+  </div>
+
+  <!-- CONTEXT MENU -->
+  <div x-show="ctxMenu.show" x-transition @click.away="ctxMenu.show = false" class="ctx-menu" :style="'top:'+ctxMenu.y+'px;left:'+ctxMenu.x+'px'">
+    <button @click="shareFile(ctxMenu.file)"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.03a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L5.25 9.12"/></svg> Share</button>
+    <button @click="downloadFile(ctxMenu.file)"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg> Download</button>
+    <button @click="showRenameModal(ctxMenu.file)"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"/></svg> Rename</button>
+    <button @click="deleteFiles([ctxMenu.file.id])" class="danger"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg> Delete</button>
+  </div>
+
+  <!-- SHARE MODAL -->
+  <div x-show="shareModal.show" x-transition class="modal-backdrop" @click.self="shareModal.show = false">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-4">Share File</h3>
+      <p class="text-sm mb-4 truncate" style="color:var(--text-secondary)" x-text="shareModal.file?.name"></p>
+
+      <template x-if="shareModal.file?.shareToken">
+        <div>
+          <div class="flex gap-2 mb-4">
+            <input type="text" readonly :value="window.location.origin + '/s/' + shareModal.file.shareToken" class="flex-1 text-sm" @click="$el.select()">
+            <button @click="copyShareLink(shareModal.file.shareToken)" class="btn-primary text-xs">Copy</button>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm" style="color:var(--text-muted)" x-text="shareModal.file.downloads + ' downloads'"></span>
+            <button @click="revokeShare(shareModal.file.id)" class="btn-danger text-xs">Revoke Link</button>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="!shareModal.file?.shareToken">
+        <div>
+          <div class="mb-3">
+            <label class="block text-xs font-medium mb-1" style="color:var(--text-muted)">Password (optional)</label>
+            <input type="password" x-model="shareModal.password" placeholder="Leave empty for no password" class="w-full text-sm">
+          </div>
+          <div class="mb-4">
+            <label class="block text-xs font-medium mb-1" style="color:var(--text-muted)">Expires in (days)</label>
+            <input type="number" x-model.number="shareModal.expiresInDays" min="0" placeholder="0 = never" class="w-full text-sm">
+          </div>
+          <div class="flex gap-2 justify-end">
+            <button @click="shareModal.show = false" class="btn-secondary text-sm">Cancel</button>
+            <button @click="createShare()" class="btn-primary text-sm">Create Link</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- RENAME MODAL -->
+  <div x-show="renameModal.show" x-transition class="modal-backdrop" @click.self="renameModal.show = false">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-4">Rename File</h3>
+      <input type="text" x-model="renameModal.newName" @keydown.enter="confirmRename()" class="w-full mb-4" autofocus>
+      <div class="flex gap-2 justify-end">
+        <button @click="renameModal.show = false" class="btn-secondary text-sm">Cancel</button>
+        <button @click="confirmRename()" class="btn-primary text-sm">Rename</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW FOLDER MODAL -->
+  <div x-show="showNewFolderModal" x-transition class="modal-backdrop" @click.self="showNewFolderModal = false">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-4">New Folder</h3>
+      <input type="text" x-model="newFolderName" placeholder="Folder name" @keydown.enter="createFolder()" class="w-full mb-4" autofocus>
+      <div class="flex gap-2 justify-end">
+        <button @click="showNewFolderModal = false" class="btn-secondary text-sm">Cancel</button>
+        <button @click="createFolder()" class="btn-primary text-sm">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DELETE CONFIRMATION MODAL -->
+  <div x-show="deleteModal.show" x-transition class="modal-backdrop" @click.self="deleteModal.show = false">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-2">Delete Files</h3>
+      <p class="text-sm mb-4" style="color:var(--text-secondary)" x-text="'Are you sure you want to delete ' + deleteModal.ids.length + ' file(s)? This cannot be undone.'"></p>
+      <div class="flex gap-2 justify-end">
+        <button @click="deleteModal.show = false" class="btn-secondary text-sm">Cancel</button>
+        <button @click="confirmDelete()" class="btn-danger text-sm">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- UPLOAD PANEL -->
+  <div x-show="uploads.length > 0" class="upload-panel">
+    <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color:var(--border)">
+      <span class="text-sm font-medium" x-text="'Uploading ' + uploads.filter(u => u.status === 'uploading').length + ' / ' + uploads.length"></span>
+      <button @click="uploads = uploads.filter(u => u.status === 'uploading')" class="text-xs" style="color:var(--text-muted)">Clear done</button>
+    </div>
+    <div class="max-h-48 overflow-y-auto">
+      <template x-for="(upload, i) in uploads" :key="i">
+        <div class="upload-item">
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-medium truncate" x-text="upload.name"></p>
+            <div class="progress-bar mt-1">
+              <div class="fill" :style="'width:' + upload.progress + '%'"></div>
+            </div>
+          </div>
+          <span class="text-xs flex-shrink-0" :style="upload.status === 'done' ? 'color:var(--success)' : upload.status === 'error' ? 'color:var(--danger)' : 'color:var(--text-muted)'" x-text="upload.status === 'done' ? '✓' : upload.status === 'error' ? '✗' : upload.progress + '%'"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<script src="/js/upload.js"></script>
+<script src="/js/app.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+</body>
+</html>

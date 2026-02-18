@@ -1,0 +1,31 @@
+{
+  "name": "cloudvault",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-02-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/api/*", "/s/*", "/login", "/auth/*"]
+  },
+  "r2_buckets": [
+    {
+      "binding": "VAULT_BUCKET",
+      "bucket_name": "cloudvault-files"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "VAULT_KV",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "ENVIRONMENT": "production"
+  }
+}

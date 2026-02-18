@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudVault — Shared File</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: { accent: {50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a'} } } }
+    }
+  </script>
+  <style>
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp 0.4s ease-out; }
+    .preview-container { background: #0a0a0f; border-radius: 12px; overflow: hidden; max-height: 70vh; display: flex; align-items: center; justify-content: center; }
+    .preview-container img { max-width: 100%; max-height: 70vh; object-fit: contain; }
+    .preview-container video, .preview-container audio { width: 100%; max-height: 70vh; }
+    .preview-container iframe { width: 100%; height: 70vh; border: none; }
+    .preview-container pre { width: 100%; max-height: 70vh; overflow: auto; padding: 20px; margin: 0; font-size: 13px; line-height: 1.6; color: #e5e7eb; background: #111827; }
+    .copy-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e40af; color: white; padding: 10px 20px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+    .copy-toast.show { opacity: 1; }
+  </style>
+</head>
+<body class="bg-gray-950 min-h-screen flex flex-col">
+  <script id="file-data" type="application/json">{}</script>
+
+  <header class="border-b border-gray-800 px-4 py-3">
+    <div class="max-w-4xl mx-auto flex items-center gap-2">
+      <div class="w-7 h-7 rounded-lg flex items-center justify-center bg-accent-600/20">
+        <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
+      </div>
+      <span class="font-semibold text-sm text-white">CloudVault</span>
+    </div>
+  </header>
+
+  <main class="flex-1 flex items-start justify-center p-4 pt-8">
+    <div class="fade-up w-full max-w-4xl">
+
+      <div id="password-gate" class="hidden max-w-sm mx-auto">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center">
+          <svg class="w-12 h-12 mx-auto mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+          <h2 class="text-lg font-semibold text-white mb-1">Password Protected</h2>
+          <p class="text-sm text-gray-500 mb-4">Enter the password to access this file</p>
+          <form id="password-form" method="POST">
+            <input type="password" name="password" placeholder="Password" required autofocus class="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-500 mb-3">
+            <div id="password-error" class="hidden text-red-400 text-sm mb-3"></div>
+            <button type="submit" class="w-full py-3 rounded-xl bg-accent-600 hover:bg-accent-500 text-white font-medium transition-all">Unlock</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="file-view" class="hidden">
+        <div id="preview-area" class="preview-container mb-6"></div>
+
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center text-2xl flex-shrink-0" id="file-icon"></div>
+            <div class="flex-1 min-w-0">
+              <h1 class="text-lg font-semibold text-white truncate" id="file-name"></h1>
+              <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-gray-500">
+                <span id="file-size"></span>
+                <span>&middot;</span>
+                <span id="file-date"></span>
+                <span>&middot;</span>
+                <span id="file-downloads"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-2 mt-5">
+            <a id="download-btn" class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-accent-600 hover:bg-accent-500 text-white font-medium transition-all text-center cursor-pointer">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+              Download
+            </a>
+            <button id="copy-btn" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-all" title="Copy link">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.03a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L5.25 9.12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="error-view" class="hidden max-w-sm mx-auto text-center">
+        <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+        <h2 class="text-xl font-semibold text-white mb-2">File Not Available</h2>
+        <p class="text-gray-500" id="error-message">This share link may have expired or been revoked.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="text-center py-4 text-xs text-gray-600">Powered by CloudVault</footer>
+
+  <div class="copy-toast" id="copy-toast">Link copied to clipboard</div>
+
+  <script src="/js/share.js"></script>
+</body>
+</html>
