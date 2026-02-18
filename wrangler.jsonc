@@ -8,7 +8,7 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "none",
-    "run_worker_first": ["/api/*", "/s/*", "/login", "/auth/*"]
+    "run_worker_first": ["/", "/admin", "/api/*", "/s/*", "/login", "/auth/*"]
   },
   "r2_buckets": [
     {

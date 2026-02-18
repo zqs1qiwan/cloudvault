@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudVault — Shared Files</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: { accent: {50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a'} } } }
+    }
+  </script>
+  <style>
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp 0.4s ease-out; }
+    .file-card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; transition: all 0.15s; cursor: pointer; }
+    .file-card:hover { border-color: #374151; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .folder-tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 8px; font-size: 12px; cursor: pointer; transition: all 0.15s; border: 1px solid #1f2937; color: #9ca3af; background: transparent; }
+    .folder-tag:hover { border-color: #374151; color: #d1d5db; }
+    .folder-tag.active { background: #1e40af20; border-color: #3b82f6; color: #60a5fa; }
+  </style>
+</head>
+<body class="bg-gray-950 min-h-screen flex flex-col">
+
+  <header class="border-b border-gray-800 px-4 py-3">
+    <div class="max-w-5xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center bg-accent-600/20">
+          <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
+        </div>
+        <span class="font-semibold text-sm text-white">CloudVault</span>
+        <span class="text-xs text-gray-500 ml-1">Shared Files</span>
+      </div>
+      <a id="login-btn" href="/login" class="hidden text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500">
+        Admin
+      </a>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-5xl mx-auto w-full px-4 py-6">
+    <div class="fade-up">
+
+      <div id="folder-filters" class="hidden flex flex-wrap gap-2 mb-5">
+        <button class="folder-tag active" data-folder="all">All</button>
+      </div>
+
+      <div id="loading" class="flex items-center justify-center py-20">
+        <svg class="w-8 h-8 text-accent-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      </div>
+
+      <div id="empty-state" class="hidden text-center py-20">
+        <svg class="w-16 h-16 mx-auto mb-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
+        <p class="text-lg font-medium text-gray-400 mb-1">No shared files</p>
+        <p class="text-sm text-gray-600">Nothing has been shared publicly yet.</p>
+      </div>
+
+      <div id="file-grid" class="hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"></div>
+    </div>
+  </main>
+
+  <footer class="text-center py-4 text-xs text-gray-600">Powered by CloudVault</footer>
+
+  <script>
+    (function() {
+      var grid = document.getElementById('file-grid');
+      var loading = document.getElementById('loading');
+      var empty = document.getElementById('empty-state');
+      var filtersContainer = document.getElementById('folder-filters');
+      var loginBtn = document.getElementById('login-btn');
+      var allFiles = [];
+      var activeFolder = 'all';
+
+      fetch('/api/public/shared')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          loading.classList.add('hidden');
+
+          if (data.settings && data.settings.showLoginButton) {
+            loginBtn.classList.remove('hidden');
+          }
+
+          allFiles = data.files || [];
+          if (allFiles.length === 0) {
+            empty.classList.remove('hidden');
+            return;
+          }
+
+          var folders = [];
+          var seen = {};
+          for (var i = 0; i < allFiles.length; i++) {
+            var f = allFiles[i].folder || 'root';
+            if (!seen[f]) { seen[f] = true; folders.push(f); }
+          }
+
+          if (folders.length > 1) {
+            filtersContainer.classList.remove('hidden');
+            for (var j = 0; j < folders.length; j++) {
+              var btn = document.createElement('button');
+              btn.className = 'folder-tag';
+              btn.dataset.folder = folders[j];
+              btn.textContent = folders[j] === 'root' ? 'Root' : folders[j];
+              filtersContainer.appendChild(btn);
+            }
+          }
+
+          filtersContainer.addEventListener('click', function(e) {
+            var tag = e.target.closest('.folder-tag');
+            if (!tag) return;
+            activeFolder = tag.dataset.folder;
+            filtersContainer.querySelectorAll('.folder-tag').forEach(function(t) { t.classList.remove('active'); });
+            tag.classList.add('active');
+            renderFiles();
+          });
+
+          renderFiles();
+        })
+        .catch(function() {
+          loading.classList.add('hidden');
+          empty.classList.remove('hidden');
+        });
+
+      function renderFiles() {
+        var filtered = activeFolder === 'all' ? allFiles : allFiles.filter(function(f) { return f.folder === activeFolder; });
+        grid.innerHTML = '';
+
+        if (filtered.length === 0) {
+          grid.classList.add('hidden');
+          empty.classList.remove('hidden');
+          return;
+        }
+
+        empty.classList.add('hidden');
+        grid.classList.remove('hidden');
+
+        for (var i = 0; i < filtered.length; i++) {
+          grid.appendChild(createCard(filtered[i]));
+        }
+      }
+
+      function createCard(file) {
+        var card = document.createElement('a');
+        card.href = '/s/' + file.token;
+        card.className = 'file-card p-4 block';
+        card.innerHTML =
+          '<div class="w-full aspect-video rounded-lg flex items-center justify-center mb-3" style="background:#0d1117">' +
+            (file.type && file.type.startsWith('image/')
+              ? '<div class="text-5xl">' + getIcon(file.type, file.name) + '</div>'
+              : '<div class="text-4xl">' + getIcon(file.type, file.name) + '</div>') +
+          '</div>' +
+          '<p class="text-sm font-medium text-white truncate" title="' + escHtml(file.name) + '">' + escHtml(file.name) + '</p>' +
+          '<div class="flex items-center gap-2 mt-1">' +
+            '<span class="text-xs text-gray-500">' + formatBytes(file.size) + '</span>' +
+            (file.folder && file.folder !== 'root' ? '<span class="text-xs text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">' + escHtml(file.folder) + '</span>' : '') +
+          '</div>';
+        return card;
+      }
+
+      function escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+      function formatBytes(b) {
+        if (!b) return '0 B';
+        var k = 1024, s = ['B','KB','MB','GB','TB'], i = Math.floor(Math.log(b)/Math.log(k));
+        return parseFloat((b/Math.pow(k,i)).toFixed(1)) + ' ' + s[i];
+      }
+
+      function getIcon(type, name) {
+        if (!type) return '\uD83D\uDCC4';
+        if (type.startsWith('image/')) return '\uD83D\uDDBC\uFE0F';
+        if (type.startsWith('video/')) return '\uD83C\uDFAC';
+        if (type.startsWith('audio/')) return '\uD83C\uDFB5';
+        if (type === 'application/pdf') return '\uD83D\uDCC4';
+        if (type.indexOf('zip') >= 0 || type.indexOf('tar') >= 0) return '\uD83D\uDCE6';
+        if (type.startsWith('text/')) return '\uD83D\uDCDD';
+        return '\uD83D\uDCC1';
+      }
+    })();
+  </script>
+</body>
+</html>

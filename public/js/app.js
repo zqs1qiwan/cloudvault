@@ -20,6 +20,7 @@ function cloudvault() {
     shareModal: { show: false, file: null, password: '', expiresInDays: 0 },
     renameModal: { show: false, file: null, newName: '' },
     deleteModal: { show: false, ids: [] },
+    settingsModal: { show: false, guestPageEnabled: false, showLoginButton: true, guestFolders: [] },
 
     async init() {
       if (localStorage.getItem('cv-dark') === 'false') {
@@ -339,6 +340,42 @@ function cloudvault() {
       document.documentElement.classList.toggle('dark', this.darkMode);
       document.documentElement.classList.toggle('light', !this.darkMode);
       localStorage.setItem('cv-dark', this.darkMode);
+    },
+
+    async loadSettings() {
+      try {
+        const res = await this.apiFetch('/api/settings');
+        if (res && res.ok) {
+          const data = await res.json();
+          this.settingsModal.guestPageEnabled = data.guestPageEnabled || false;
+          this.settingsModal.showLoginButton = data.showLoginButton !== false;
+          this.settingsModal.guestFolders = data.guestFolders || [];
+        }
+      } catch { /* use defaults */ }
+    },
+
+    async saveSettings() {
+      try {
+        const res = await this.apiFetch('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            guestPageEnabled: this.settingsModal.guestPageEnabled,
+            showLoginButton: this.settingsModal.showLoginButton,
+            guestFolders: this.settingsModal.guestFolders,
+          }),
+        });
+        if (res && res.ok) {
+          this.settingsModal.show = false;
+          this.showToast('Settings saved', 'success');
+        } else { this.showToast('Failed to save settings', 'error'); }
+      } catch { this.showToast('Failed to save settings', 'error'); }
+    },
+
+    toggleGuestFolder(folder) {
+      const idx = this.settingsModal.guestFolders.indexOf(folder);
+      if (idx >= 0) this.settingsModal.guestFolders.splice(idx, 1);
+      else this.settingsModal.guestFolders.push(folder);
     },
 
     async logout() {

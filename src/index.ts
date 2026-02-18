@@ -1,9 +1,11 @@
 import { Env } from './utils/types';
-import { json, error, corsPreflightResponse } from './utils/response';
-import { handleLogin, handleLogout, authMiddleware } from './auth';
+import { error, redirect, corsPreflightResponse, fetchAssetHtml } from './utils/response';
+import { handleLogin, handleLogout, authMiddleware, validateSession } from './auth';
+import { getSettings } from './api/settings';
 import * as files from './api/files';
 import * as share from './api/share';
 import * as stats from './api/stats';
+import * as settings from './api/settings';
 import * as download from './handlers/download';
 
 export default {
@@ -32,6 +34,23 @@ export default {
         return env.ASSETS.fetch(new Request(url.toString(), request));
       }
 
+      if (path === '/api/public/shared' && method === 'GET') {
+        return await share.listPublicShared(request, env);
+      }
+
+      if (path === '/' && method === 'GET') {
+        return await handleRootPage(request, env);
+      }
+
+      if (path === '/admin' && method === 'GET') {
+        const authResponse = await authMiddleware(request, env);
+        if (authResponse) return authResponse;
+        const dashHtml = await fetchAssetHtml(env.ASSETS, request.url, '/dashboard.html');
+        return new Response(dashHtml, {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        });
+      }
+
       if (path.startsWith('/api/')) {
         const authResponse = await authMiddleware(request, env);
         if (authResponse) return authResponse;
@@ -49,6 +68,21 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>;
+
+async function handleRootPage(request: Request, env: Env): Promise<Response> {
+  const siteSettings = await getSettings(env);
+
+  if (!siteSettings.guestPageEnabled) {
+    const isAuth = await validateSession(request, env);
+    if (isAuth) return redirect('/admin');
+    return redirect('/login');
+  }
+
+  const guestHtml = await fetchAssetHtml(env.ASSETS, request.url, '/guest.html');
+  return new Response(guestHtml, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+}
 
 async function handleShareRoutes(
   request: Request,
@@ -131,6 +165,13 @@ async function handleApiRoutes(
 
   if (path === '/api/stats' && method === 'GET') {
     return stats.getStats(request, env);
+  }
+
+  if (path === '/api/settings' && method === 'GET') {
+    return settings.handleGetSettings(request, env);
+  }
+  if (path === '/api/settings' && method === 'PUT') {
+    return settings.handlePutSettings(request, env);
   }
 
   return error('Not found', 404);

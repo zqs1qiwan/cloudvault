@@ -72,16 +72,24 @@ export interface MultipartCompleteRequest {
   parts: { partNumber: number; etag: string }[];
 }
 
-// ─── KV Key Patterns ─────────────────────────────────────────────────
-// file:{id}         → FileMeta JSON
-// share:{token}     → fileId string
-// session:{id}      → Session JSON
-// stats:totalFiles  → number string
-// stats:totalSize   → number string
+// ─── Site Settings ────────────────────────────────────────────────────
+export interface SiteSettings {
+  guestPageEnabled: boolean;
+  showLoginButton: boolean;
+  guestFolders: string[];
+}
 
+export const DEFAULT_SETTINGS: SiteSettings = {
+  guestPageEnabled: false,
+  showLoginButton: true,
+  guestFolders: [],
+};
+
+// ─── KV Key Patterns ─────────────────────────────────────────────────
 export const KV_PREFIX = {
   FILE: 'file:',
   SHARE: 'share:',
   SESSION: 'session:',
   STATS: 'stats:',
+  SETTINGS: 'settings:',
 } as const;

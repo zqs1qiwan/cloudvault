@@ -1,5 +1,6 @@
-import { Env, FileMeta, KV_PREFIX } from '../utils/types';
+import { Env, FileMeta, KV_PREFIX, SiteSettings } from '../utils/types';
 import { json, error } from '../utils/response';
+import { getSettings } from './settings';
 
 function extractFileId(url: URL): string | null {
   const parts = url.pathname.split('/');
@@ -108,4 +109,37 @@ export async function getShareInfo(request: Request, env: Env): Promise<Response
     expiresAt: meta.shareExpiresAt,
     downloads: meta.downloads,
   });
+}
+
+export async function listPublicShared(request: Request, env: Env): Promise<Response> {
+  const settings = await getSettings(env);
+  const files: Array<{
+    name: string; size: number; type: string;
+    token: string; folder: string; uploadedAt: string;
+  }> = [];
+
+  let cursor: string | undefined;
+  for (;;) {
+    const result = await env.VAULT_KV.list({ prefix: KV_PREFIX.FILE, limit: 1000, cursor });
+    for (const key of result.keys) {
+      const raw = await env.VAULT_KV.get(key.name);
+      if (!raw) continue;
+      let meta: FileMeta;
+      try { meta = JSON.parse(raw); } catch { continue; }
+
+      if (!meta.shareToken || meta.sharePassword) continue;
+      if (meta.shareExpiresAt && new Date(meta.shareExpiresAt) < new Date()) continue;
+      if (settings.guestFolders.length > 0 && !settings.guestFolders.includes(meta.folder)) continue;
+
+      files.push({
+        name: meta.name, size: meta.size, type: meta.type,
+        token: meta.shareToken, folder: meta.folder, uploadedAt: meta.uploadedAt,
+      });
+    }
+    if (result.list_complete) break;
+    cursor = result.cursor;
+  }
+
+  files.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+  return json({ files, settings: { showLoginButton: settings.showLoginButton } });
 }

@@ -93,7 +93,7 @@ export async function handleLogin(request: Request, env: Env): Promise<Response>
     headers: {
       'Content-Type': 'application/json',
       'Set-Cookie': cookie,
-      'Location': '/',
+      'Location': '/admin',
     },
   });
 }

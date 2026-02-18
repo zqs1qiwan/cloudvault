@@ -48,6 +48,21 @@ export function html(body: string, status = 200): Response {
   });
 }
 
+// ─── Asset HTML Fetching ──────────────────────────────────────────────
+// ASSETS.fetch may return 307 redirects (e.g. /share.html → /share).
+// We must follow the redirect to get the actual HTML content.
+export async function fetchAssetHtml(assets: Fetcher, requestUrl: string, assetPath: string): Promise<string> {
+  const assetUrl = new URL(assetPath, requestUrl);
+  let res = await assets.fetch(new Request(assetUrl.toString()));
+  if (res.status >= 300 && res.status < 400) {
+    const loc = res.headers.get('Location');
+    if (loc) {
+      res = await assets.fetch(new Request(new URL(loc, assetUrl).toString()));
+    }
+  }
+  return res.text();
+}
+
 // ─── Size Formatting ──────────────────────────────────────────────────
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';

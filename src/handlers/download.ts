@@ -1,5 +1,5 @@
 import { Env, FileMeta, KV_PREFIX } from '../utils/types';
-import { error, getPreviewType } from '../utils/response';
+import { error, getPreviewType, fetchAssetHtml } from '../utils/response';
 import { verifySharePassword } from '../api/share';
 
 function extractToken(url: URL): string | null {
@@ -54,8 +54,7 @@ export async function handleSharePage(request: Request, env: Env): Promise<Respo
 }
 
 async function serveShareHtml(env: Env, request: Request, fileData: Record<string, unknown>): Promise<Response> {
-  const assetResponse = await env.ASSETS.fetch(new Request(new URL('/share.html', request.url), request));
-  let html = await assetResponse.text();
+  let html = await fetchAssetHtml(env.ASSETS, request.url, '/share.html');
 
   html = html.replace(
     '<script id="file-data" type="application/json">{}</script>',
