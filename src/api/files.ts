@@ -1,5 +1,6 @@
 import { Env, FileMeta, KV_PREFIX } from '../utils/types';
 import { json, error, getMimeType } from '../utils/response';
+import { getSharedFolders, isFolderShared } from './share';
 
 function extractId(url: URL): string | null {
   const parts = url.pathname.split('/');
@@ -57,7 +58,7 @@ export async function upload(request: Request, env: Env): Promise<Response> {
 
 async function handleDirectUpload(request: Request, env: Env): Promise<Response> {
   const fileName = decodeURIComponent(request.headers.get('X-File-Name') || 'untitled');
-  const folder = request.headers.get('X-Folder') || 'root';
+  const folder = decodeURIComponent(request.headers.get('X-Folder') || 'root');
   const contentType = request.headers.get('Content-Type') || getMimeType(fileName);
   const contentLength = request.headers.get('Content-Length');
 
@@ -98,7 +99,7 @@ async function handleDirectUpload(request: Request, env: Env): Promise<Response>
 
 async function handleMultipartCreate(request: Request, env: Env): Promise<Response> {
   const fileName = decodeURIComponent(request.headers.get('X-File-Name') || 'untitled');
-  const folder = request.headers.get('X-Folder') || 'root';
+  const folder = decodeURIComponent(request.headers.get('X-Folder') || 'root');
   const contentType = request.headers.get('Content-Type') || getMimeType(fileName);
   const key = folder === 'root' ? fileName : folder + '/' + fileName;
 
@@ -274,7 +275,7 @@ export async function createFolder(request: Request, env: Env): Promise<Response
   return json({ folder: folderName }, 201);
 }
 
-export async function listFolders(request: Request, env: Env): Promise<Response> {
+export async function listFolders(_request: Request, env: Env): Promise<Response> {
   const files = await getAllFiles(env);
   const folderSet = new Set<string>();
 
@@ -295,7 +296,49 @@ export async function listFolders(request: Request, env: Env): Promise<Response>
     cursor = result.cursor;
   }
 
-  return json({ folders: Array.from(folderSet).sort() });
+  const sharedFolders = await getSharedFolders(env);
+  const folderList = Array.from(folderSet).sort().map(name => ({
+    name,
+    shared: isFolderShared(name, sharedFolders),
+    directlyShared: sharedFolders.has(name),
+  }));
+
+  return json({ folders: folderList });
+}
+
+export async function moveFiles(request: Request, env: Env): Promise<Response> {
+  const body = await request.json<{ ids: string[]; targetFolder: string }>();
+  if (!body.ids?.length) return error('No file IDs provided', 400);
+  if (body.targetFolder === undefined) return error('Target folder required', 400);
+
+  const targetFolder = body.targetFolder;
+  let moved = 0;
+
+  for (const id of body.ids) {
+    const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + id);
+    if (!raw) continue;
+
+    const meta: FileMeta = JSON.parse(raw);
+    if (meta.folder === targetFolder) continue;
+
+    const newKey = targetFolder === 'root' ? meta.name : targetFolder + '/' + meta.name;
+
+    const oldObject = await env.VAULT_BUCKET.get(meta.key);
+    if (!oldObject) continue;
+
+    await env.VAULT_BUCKET.put(newKey, oldObject.body, {
+      httpMetadata: oldObject.httpMetadata,
+      customMetadata: oldObject.customMetadata,
+    });
+    await env.VAULT_BUCKET.delete(meta.key);
+
+    meta.key = newKey;
+    meta.folder = targetFolder;
+    await env.VAULT_KV.put(KV_PREFIX.FILE + id, JSON.stringify(meta));
+    moved++;
+  }
+
+  return json({ moved });
 }
 
 export async function thumbnail(request: Request, env: Env): Promise<Response> {

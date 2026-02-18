@@ -37,6 +37,12 @@ export default {
       if (path === '/api/public/shared' && method === 'GET') {
         return await share.listPublicShared(request, env);
       }
+      if (path === '/api/public/folder' && method === 'GET') {
+        return await share.browsePublicFolder(request, env);
+      }
+      if (path.startsWith('/api/public/download/') && method === 'GET') {
+        return await share.publicDownload(request, env);
+      }
 
       if (path === '/' && method === 'GET') {
         return await handleRootPage(request, env);
@@ -151,6 +157,15 @@ async function handleApiRoutes(
   }
   if (path === '/api/folders' && method === 'POST') {
     return files.createFolder(request, env);
+  }
+  if (path === '/api/folders/share' && method === 'POST') {
+    return share.shareFolderToggle(request, env);
+  }
+  if (path === '/api/folders/shared' && method === 'GET') {
+    return share.listSharedFolders(request, env);
+  }
+  if (path === '/api/files/move' && method === 'POST') {
+    return files.moveFiles(request, env);
   }
 
   if (path === '/api/share' && method === 'POST') {

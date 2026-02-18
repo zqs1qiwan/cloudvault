@@ -2,6 +2,7 @@ function cloudvault() {
   return {
     files: [],
     folders: [],
+    expandedFolders: new Set(),
     currentFolder: 'root',
     view: localStorage.getItem('cv-view') || 'grid',
     searchQuery: '',
@@ -17,9 +18,11 @@ function cloudvault() {
     uploads: [],
     sidebarOpen: false,
     ctxMenu: { show: false, x: 0, y: 0, file: null },
+    folderCtxMenu: { show: false, x: 0, y: 0, folder: null },
     shareModal: { show: false, file: null, password: '', expiresInDays: 0 },
     renameModal: { show: false, file: null, newName: '' },
     deleteModal: { show: false, ids: [] },
+    moveModal: { show: false, files: [], targetFolder: 'root' },
     settingsModal: { show: false, guestPageEnabled: false, showLoginButton: true, guestFolders: [] },
 
     async init() {
@@ -31,6 +34,7 @@ function cloudvault() {
 
       this.setupDragDrop();
       this.setupUploadEvents();
+      this.setupTreeEvents();
 
       await Promise.all([this.fetchFiles(), this.fetchFolders(), this.fetchStats()]);
       this.loading = false;
@@ -77,6 +81,149 @@ function cloudvault() {
       });
     },
 
+    setupTreeEvents() {
+      const sidebar = document.querySelector('.sidebar');
+      if (!sidebar) return;
+      sidebar.addEventListener('click', (e) => {
+        const toggleEl = e.target.closest('[data-toggle-folder]');
+        if (toggleEl) {
+          e.stopPropagation();
+          this.toggleFolderExpand(toggleEl.dataset.toggleFolder);
+          return;
+        }
+        const itemEl = e.target.closest('[data-folder-path]');
+        if (itemEl) {
+          this.navigateFolder(itemEl.dataset.folderPath);
+        }
+      });
+      sidebar.addEventListener('contextmenu', (e) => {
+        const itemEl = e.target.closest('[data-folder-path]');
+        if (itemEl) {
+          e.preventDefault();
+          const path = itemEl.dataset.folderPath;
+          const folder = this.folders.find(f => f.name === path);
+          if (folder) {
+            let x = e.clientX, y = e.clientY;
+            if (x + 200 > window.innerWidth) x = window.innerWidth - 200;
+            if (y + 200 > window.innerHeight) y = window.innerHeight - 200;
+            this.folderCtxMenu = { show: true, x, y, folder };
+          }
+        }
+      });
+    },
+
+    toggleFolderExpand(path) {
+      if (this.expandedFolders.has(path)) this.expandedFolders.delete(path);
+      else this.expandedFolders.add(path);
+      this.expandedFolders = new Set(this.expandedFolders);
+    },
+
+    get folderTree() {
+      const root = [];
+      const map = {};
+      for (const folder of this.folders) {
+        const parts = folder.name.split('/');
+        let currentPath = '';
+        let currentLevel = root;
+        for (let i = 0; i < parts.length; i++) {
+          currentPath = currentPath ? currentPath + '/' + parts[i] : parts[i];
+          if (!map[currentPath]) {
+            const fd = this.folders.find(f => f.name === currentPath);
+            const node = {
+              name: parts[i], path: currentPath,
+              shared: fd ? fd.shared : false,
+              directlyShared: fd ? fd.directlyShared : false,
+              children: [],
+            };
+            map[currentPath] = node;
+            currentLevel.push(node);
+          }
+          currentLevel = map[currentPath].children;
+        }
+      }
+      return root;
+    },
+
+    renderFolderTree(nodes, depth) {
+      if (!nodes || nodes.length === 0) return '';
+      let html = '';
+      for (const node of nodes) {
+        const isActive = this.currentFolder === node.path;
+        const isExpanded = this.expandedFolders.has(node.path);
+        const hasChildren = node.children && node.children.length > 0;
+        const indent = depth * 16;
+        const sharedBadge = node.directlyShared
+          ? '<span class="folder-share-badge" title="Shared">\u25CF</span>'
+          : (node.shared ? '<span class="folder-share-badge inherited" title="Inherited share">\u25CB</span>' : '');
+        html += '<div class="sidebar-item tree-item' + (isActive ? ' active' : '') + '" ' +
+          'style="padding-left:' + (12 + indent) + 'px" ' +
+          'data-folder-path="' + this._escAttr(node.path) + '">' +
+          (hasChildren
+            ? '<svg class="w-3 h-3 tree-chevron' + (isExpanded ? ' expanded' : '') + '" data-toggle-folder="' + this._escAttr(node.path) + '" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>'
+            : '<span class="w-3 h-3 inline-block"></span>') +
+          '<span class="relative flex-shrink-0">' +
+            '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>' +
+            sharedBadge +
+          '</span>' +
+          '<span class="truncate">' + this._escHtml(node.name) + '</span>' +
+        '</div>';
+        if (hasChildren && isExpanded) {
+          html += this.renderFolderTree(node.children, depth + 1);
+        }
+      }
+      return html;
+    },
+
+    _escHtml(s) {
+      const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+    },
+    _escAttr(s) {
+      return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    },
+
+    async toggleFolderShare(folder) {
+      this.folderCtxMenu.show = false;
+      if (!folder) return;
+      try {
+        const res = await this.apiFetch('/api/folders/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folder: folder.name }),
+        });
+        if (res && res.ok) {
+          const data = await res.json();
+          this.showToast(data.shared ? 'Folder shared' : 'Folder unshared', 'success');
+          await this.fetchFolders();
+        } else { this.showToast('Failed to toggle folder sharing', 'error'); }
+      } catch { this.showToast('Failed to toggle folder sharing', 'error'); }
+    },
+
+    showMoveModal(file) {
+      this.ctxMenu.show = false;
+      this.moveModal = { show: true, files: [file.id], targetFolder: 'root' };
+    },
+
+    moveSelected() {
+      this.moveModal = { show: true, files: [...this.selectedFiles], targetFolder: 'root' };
+    },
+
+    async confirmMove() {
+      const { files: ids, targetFolder } = this.moveModal;
+      this.moveModal.show = false;
+      try {
+        const res = await this.apiFetch('/api/files/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids, targetFolder }),
+        });
+        if (res && res.ok) {
+          const data = await res.json();
+          this.showToast(data.moved + ' file(s) moved', 'success');
+          await Promise.all([this.fetchFiles(), this.fetchFolders()]);
+        } else { this.showToast('Move failed', 'error'); }
+      } catch { this.showToast('Move failed', 'error'); }
+    },
+
     async apiFetch(url, opts = {}) {
       const res = await fetch(url, { credentials: 'same-origin', ...opts });
       if (res.status === 401) { window.location.href = '/login'; return null; }
@@ -97,7 +244,7 @@ function cloudvault() {
       const res = await this.apiFetch('/api/folders');
       if (!res) return;
       const data = await res.json();
-      this.folders = data.folders || [];
+      this.folders = (data.folders || []).map(f => typeof f === 'string' ? { name: f, shared: false, directlyShared: false } : f);
     },
 
     async fetchStats() {
@@ -126,6 +273,15 @@ function cloudvault() {
       this.searchQuery = '';
       this.clearSelection();
       this.sidebarOpen = false;
+      if (folder !== 'root') {
+        const parts = folder.split('/');
+        let path = '';
+        for (let i = 0; i < parts.length - 1; i++) {
+          path = path ? path + '/' + parts[i] : parts[i];
+          this.expandedFolders.add(path);
+        }
+        this.expandedFolders = new Set(this.expandedFolders);
+      }
       this.fetchFiles();
     },
 
@@ -372,10 +528,10 @@ function cloudvault() {
       } catch { this.showToast('Failed to save settings', 'error'); }
     },
 
-    toggleGuestFolder(folder) {
-      const idx = this.settingsModal.guestFolders.indexOf(folder);
+    toggleGuestFolder(folderName) {
+      const idx = this.settingsModal.guestFolders.indexOf(folderName);
       if (idx >= 0) this.settingsModal.guestFolders.splice(idx, 1);
-      else this.settingsModal.guestFolders.push(folder);
+      else this.settingsModal.guestFolders.push(folderName);
     },
 
     async logout() {
@@ -396,9 +552,11 @@ function cloudvault() {
       if (e.key === 'Escape') {
         this.clearSelection();
         this.ctxMenu.show = false;
+        this.folderCtxMenu.show = false;
         this.shareModal.show = false;
         this.renameModal.show = false;
         this.deleteModal.show = false;
+        this.moveModal.show = false;
         this.showNewFolderModal = false;
       }
     },

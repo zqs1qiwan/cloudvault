@@ -46,7 +46,7 @@ window.UploadManager = {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/files/upload');
       xhr.setRequestHeader('X-File-Name', encodeURIComponent(item.file.name));
-      xhr.setRequestHeader('X-Folder', item.folder || 'root');
+      xhr.setRequestHeader('X-Folder', encodeURIComponent(item.folder || 'root'));
       xhr.setRequestHeader('Content-Type', item.file.type || 'application/octet-stream');
       xhr.withCredentials = true;
 
@@ -74,7 +74,7 @@ window.UploadManager = {
       method: 'POST',
       headers: {
         'X-File-Name': encodeURIComponent(file.name),
-        'X-Folder': folder || 'root',
+        'X-Folder': encodeURIComponent(folder || 'root'),
         'Content-Type': file.type || 'application/octet-stream',
       },
       credentials: 'same-origin',

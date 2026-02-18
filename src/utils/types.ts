@@ -89,6 +89,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
 export const KV_PREFIX = {
   FILE: 'file:',
   SHARE: 'share:',
+  FOLDER_SHARE: 'foldershare:',
   SESSION: 'session:',
   STATS: 'stats:',
   SETTINGS: 'settings:',

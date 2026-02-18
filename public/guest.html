@@ -68,90 +68,138 @@
       var empty = document.getElementById('empty-state');
       var filtersContainer = document.getElementById('folder-filters');
       var loginBtn = document.getElementById('login-btn');
-      var allFiles = [];
-      var activeFolder = 'all';
+      var currentPath = '';
+      var sharedFolders = [];
 
-      fetch('/api/public/shared')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          loading.classList.add('hidden');
+      loadView();
 
-          if (data.settings && data.settings.showLoginButton) {
-            loginBtn.classList.remove('hidden');
+      function loadView() {
+        loading.classList.remove('hidden');
+        grid.classList.add('hidden');
+        empty.classList.add('hidden');
+
+        if (!currentPath) {
+          fetch('/api/public/shared')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              loading.classList.add('hidden');
+              if (data.settings && data.settings.showLoginButton) loginBtn.classList.remove('hidden');
+              sharedFolders = data.sharedFolders || [];
+              renderRoot(data.files || [], sharedFolders);
+            })
+            .catch(function() { loading.classList.add('hidden'); empty.classList.remove('hidden'); });
+        } else {
+          fetch('/api/public/folder?path=' + encodeURIComponent(currentPath))
+            .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
+            .then(function(data) {
+              loading.classList.add('hidden');
+              renderFolder(data);
+            })
+            .catch(function() { loading.classList.add('hidden'); empty.classList.remove('hidden'); });
+        }
+      }
+
+      function renderBreadcrumb() {
+        filtersContainer.innerHTML = '';
+        filtersContainer.classList.remove('hidden');
+
+        var homeBtn = document.createElement('button');
+        homeBtn.className = 'folder-tag' + (!currentPath ? ' active' : '');
+        homeBtn.textContent = 'Home';
+        homeBtn.onclick = function() { currentPath = ''; loadView(); };
+        filtersContainer.appendChild(homeBtn);
+
+        if (currentPath) {
+          var parts = currentPath.split('/');
+          for (var i = 0; i < parts.length; i++) {
+            var sep = document.createElement('span');
+            sep.className = 'text-gray-600 text-xs';
+            sep.textContent = '\u203A';
+            filtersContainer.appendChild(sep);
+
+            var btn = document.createElement('button');
+            btn.className = 'folder-tag' + (i === parts.length - 1 ? ' active' : '');
+            btn.textContent = parts[i];
+            (function(idx) {
+              btn.onclick = function() {
+                currentPath = parts.slice(0, idx + 1).join('/');
+                loadView();
+              };
+            })(i);
+            filtersContainer.appendChild(btn);
           }
+        }
+      }
 
-          allFiles = data.files || [];
-          if (allFiles.length === 0) {
-            empty.classList.remove('hidden');
-            return;
-          }
-
-          var folders = [];
-          var seen = {};
-          for (var i = 0; i < allFiles.length; i++) {
-            var f = allFiles[i].folder || 'root';
-            if (!seen[f]) { seen[f] = true; folders.push(f); }
-          }
-
-          if (folders.length > 1) {
-            filtersContainer.classList.remove('hidden');
-            for (var j = 0; j < folders.length; j++) {
-              var btn = document.createElement('button');
-              btn.className = 'folder-tag';
-              btn.dataset.folder = folders[j];
-              btn.textContent = folders[j] === 'root' ? 'Root' : folders[j];
-              filtersContainer.appendChild(btn);
-            }
-          }
-
-          filtersContainer.addEventListener('click', function(e) {
-            var tag = e.target.closest('.folder-tag');
-            if (!tag) return;
-            activeFolder = tag.dataset.folder;
-            filtersContainer.querySelectorAll('.folder-tag').forEach(function(t) { t.classList.remove('active'); });
-            tag.classList.add('active');
-            renderFiles();
-          });
-
-          renderFiles();
-        })
-        .catch(function() {
-          loading.classList.add('hidden');
-          empty.classList.remove('hidden');
-        });
-
-      function renderFiles() {
-        var filtered = activeFolder === 'all' ? allFiles : allFiles.filter(function(f) { return f.folder === activeFolder; });
+      function renderRoot(files, folders) {
+        renderBreadcrumb();
         grid.innerHTML = '';
 
-        if (filtered.length === 0) {
-          grid.classList.add('hidden');
+        if (folders.length === 0 && files.length === 0) {
           empty.classList.remove('hidden');
           return;
         }
 
-        empty.classList.add('hidden');
         grid.classList.remove('hidden');
 
-        for (var i = 0; i < filtered.length; i++) {
-          grid.appendChild(createCard(filtered[i]));
+        for (var i = 0; i < folders.length; i++) {
+          grid.appendChild(createFolderCard(folders[i]));
+        }
+        for (var j = 0; j < files.length; j++) {
+          grid.appendChild(createFileCard(files[j]));
         }
       }
 
-      function createCard(file) {
-        var card = document.createElement('a');
-        card.href = '/s/' + file.token;
+      function renderFolder(data) {
+        renderBreadcrumb();
+        grid.innerHTML = '';
+        var subs = data.subfolders || [];
+        var files = data.files || [];
+
+        if (subs.length === 0 && files.length === 0) {
+          empty.classList.remove('hidden');
+          return;
+        }
+
+        grid.classList.remove('hidden');
+        for (var i = 0; i < subs.length; i++) {
+          grid.appendChild(createFolderCard(subs[i]));
+        }
+        for (var j = 0; j < files.length; j++) {
+          grid.appendChild(createFileCard(files[j]));
+        }
+      }
+
+      function createFolderCard(folderPath) {
+        var name = folderPath.split('/').pop();
+        var card = document.createElement('div');
         card.className = 'file-card p-4 block';
+        card.style.cursor = 'pointer';
+        card.onclick = function() { currentPath = folderPath; loadView(); };
         card.innerHTML =
           '<div class="w-full aspect-video rounded-lg flex items-center justify-center mb-3" style="background:#0d1117">' +
-            (file.type && file.type.startsWith('image/')
-              ? '<div class="text-5xl">' + getIcon(file.type, file.name) + '</div>'
-              : '<div class="text-4xl">' + getIcon(file.type, file.name) + '</div>') +
+            '<div class="text-4xl">\uD83D\uDCC2</div>' +
+          '</div>' +
+          '<p class="text-sm font-medium text-white truncate" title="' + escHtml(name) + '">' + escHtml(name) + '</p>' +
+          '<span class="text-xs text-gray-500">Folder</span>';
+        return card;
+      }
+
+      function createFileCard(file) {
+        var card = document.createElement('a');
+        card.className = 'file-card p-4 block';
+        if (file.token) {
+          card.href = '/s/' + file.token;
+        } else {
+          card.href = '/api/public/download/' + file.id;
+        }
+        card.innerHTML =
+          '<div class="w-full aspect-video rounded-lg flex items-center justify-center mb-3" style="background:#0d1117">' +
+            '<div class="text-4xl">' + getIcon(file.type, file.name) + '</div>' +
           '</div>' +
           '<p class="text-sm font-medium text-white truncate" title="' + escHtml(file.name) + '">' + escHtml(file.name) + '</p>' +
           '<div class="flex items-center gap-2 mt-1">' +
             '<span class="text-xs text-gray-500">' + formatBytes(file.size) + '</span>' +
-            (file.folder && file.folder !== 'root' ? '<span class="text-xs text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">' + escHtml(file.folder) + '</span>' : '') +
           '</div>';
         return card;
       }
