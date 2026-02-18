@@ -1,5 +1,6 @@
 {
   "name": "cloudvault",
+  "account_id": "0900cf790220d543f4a1b7b8a0e13a0f",
   "main": "src/index.ts",
   "compatibility_date": "2026-02-18",
   "compatibility_flags": ["nodejs_compat"],
@@ -18,7 +19,7 @@
   "kv_namespaces": [
     {
       "binding": "VAULT_KV",
-      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+      "id": "dcbf16f1846c4aa19a53106ef6f6f1ed"
     }
   ],
   "observability": {
