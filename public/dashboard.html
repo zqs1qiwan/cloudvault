@@ -166,7 +166,7 @@
         <!-- Grid View -->
         <div x-show="!loading && view === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           <template x-for="file in filteredFiles" :key="file.id">
-            <div class="file-card p-3" :class="{'selected': selectedFiles.has(file.id)}"
+            <div class="file-card p-3" :class="{'selected': selectedFiles.has(file.id), 'selection-mode': selectedFiles.size > 0}"
               @click="selectFile(file.id, $event)" @dblclick="previewFile(file)" @contextmenu.prevent="openContextMenu($event, file)">
               <div class="check">
                 <div class="w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs" :style="selectedFiles.has(file.id) ? 'background:var(--accent);border-color:var(--accent);color:white' : 'border-color:var(--border-light)'">
@@ -353,7 +353,7 @@
           <input type="url" x-model="settingsModal.siteIconUrl" placeholder="https://example.com/logo.png" class="w-full text-sm">
           <p class="text-xs mt-0.5" style="color:var(--text-muted)">Custom logo image URL (leave empty for default cloud icon)</p>
           <div x-show="settingsModal.siteIconUrl" class="mt-2 flex items-center gap-2">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden" style="background:var(--bg-tertiary)">
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden" style="background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%);background-size:8px 8px;background-position:0 0,0 4px,4px -4px,-4px 0">
               <img :src="settingsModal.siteIconUrl" class="w-full h-full object-contain" @error="$el.style.display='none'">
             </div>
             <span class="text-xs" style="color:var(--text-muted)">Preview</span>

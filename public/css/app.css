@@ -57,7 +57,7 @@ html.light {
 .file-card:hover { border-color: var(--border-light); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 .file-card.selected { border-color: var(--accent); background: var(--accent-soft); }
 .file-card .check { position: absolute; top: 8px; left: 8px; opacity: 0; transition: opacity 0.15s; }
-.file-card:hover .check, .file-card.selected .check { opacity: 1; }
+.file-card:hover .check, .file-card.selected .check, .file-card.selection-mode .check { opacity: 1; }
 
 .file-row {
   border-bottom: 1px solid var(--border);

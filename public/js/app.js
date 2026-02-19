@@ -457,9 +457,7 @@ function cloudvault() {
     },
 
     selectFile(id, event) {
-      if (event.ctrlKey || event.metaKey) {
-        this.toggleSelect(id);
-      } else if (event.shiftKey && this.selectedFiles.size > 0) {
+      if (event.shiftKey && this.selectedFiles.size > 0) {
         const ids = this.filteredFiles.map(f => f.id);
         const lastSelected = [...this.selectedFiles].pop();
         const from = ids.indexOf(lastSelected);
@@ -468,7 +466,7 @@ function cloudvault() {
         for (let i = start; i <= end; i++) this.selectedFiles.add(ids[i]);
         this.selectedFiles = new Set(this.selectedFiles);
       } else {
-        this.selectedFiles = new Set([id]);
+        this.toggleSelect(id);
       }
     },
 
