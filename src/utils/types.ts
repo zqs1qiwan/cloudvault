@@ -76,13 +76,11 @@ export interface MultipartCompleteRequest {
 export interface SiteSettings {
   guestPageEnabled: boolean;
   showLoginButton: boolean;
-  guestFolders: string[];
 }
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   guestPageEnabled: false,
   showLoginButton: true,
-  guestFolders: [],
 };
 
 // ─── KV Key Patterns ─────────────────────────────────────────────────
@@ -90,6 +88,7 @@ export const KV_PREFIX = {
   FILE: 'file:',
   SHARE: 'share:',
   FOLDER_SHARE: 'foldershare:',
+  FOLDER_SHARE_EXCLUDE: 'foldershare-exclude:',
   SESSION: 'session:',
   STATS: 'stats:',
   SETTINGS: 'settings:',

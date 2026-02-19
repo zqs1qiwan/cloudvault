@@ -147,9 +147,18 @@ async function handleApiRoutes(
     return files.thumbnail(request, env);
   }
 
+  const previewMatch = path.match(/^\/api\/files\/([^/]+)\/preview$/);
+  if (previewMatch && method === 'GET') {
+    return files.preview(request, env);
+  }
+
   const fileDownloadMatch = path.match(/^\/api\/files\/([^/]+)\/download$/);
   if (fileDownloadMatch && method === 'GET') {
     return files.download(request, env);
+  }
+
+  if (path === '/api/files/zip' && method === 'POST') {
+    return files.zipDownload(request, env);
   }
 
   if (path === '/api/folders' && method === 'GET') {
@@ -157,6 +166,15 @@ async function handleApiRoutes(
   }
   if (path === '/api/folders' && method === 'POST') {
     return files.createFolder(request, env);
+  }
+  if (path === '/api/folders' && method === 'DELETE') {
+    return files.deleteFolder(request, env);
+  }
+  if (path === '/api/folders' && method === 'PUT') {
+    return files.renameFolder(request, env);
+  }
+  if (path === '/api/folders/exclude' && method === 'POST') {
+    return share.toggleFolderExclude(request, env);
   }
   if (path === '/api/folders/share' && method === 'POST') {
     return share.shareFolderToggle(request, env);

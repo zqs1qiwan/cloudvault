@@ -27,9 +27,6 @@ export async function handlePutSettings(request: Request, env: Env): Promise<Res
   if (typeof body.showLoginButton === 'boolean') {
     current.showLoginButton = body.showLoginButton;
   }
-  if (Array.isArray(body.guestFolders)) {
-    current.guestFolders = body.guestFolders.filter(f => typeof f === 'string' && f.trim());
-  }
 
   await env.VAULT_KV.put(SETTINGS_KEY, JSON.stringify(current));
   return json(current);
