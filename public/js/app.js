@@ -797,7 +797,8 @@ function cloudvault() {
       if (type === 'application/pdf') return '\uD83D\uDCC4';
       if (type.includes('zip') || type.includes('tar') || type.includes('gzip') || type.includes('rar') ||
           type.includes('x-7z') || n.match(/\.(zip|tar|gz|rar|7z|bz2|xz|tgz)$/)) return '\uD83D\uDCE6';
-      if (n.match(/\.(apk|ipa|aab)$/)) return '\uD83D\uDCF1';
+      if (n.match(/\.(apk|aab)$/)) return '\uD83E\uDD16';
+      if (n.match(/\.(ipa)$/)) return '\uD83D\uDCF1';
       if (n.match(/\.(exe|msi|dmg|pkg|deb|rpm|appimage)$/)) return '\uD83D\uDCBF';
       if (n.match(/\.(iso|img)$/)) return '\uD83D\uDCBF';
       if (n.match(/\.(ttf|otf|woff|woff2|eot)$/)) return '\uD83D\uDD24';
