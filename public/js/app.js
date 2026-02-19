@@ -831,6 +831,9 @@ function cloudvault() {
           this._branding.siteName = this.settingsModal.siteName || 'CloudVault';
           this._branding.siteIconUrl = this.settingsModal.siteIconUrl || '';
           document.title = this._branding.siteName;
+          var fi = document.querySelector('link[rel="icon"]');
+          if (this._branding.siteIconUrl) { if (!fi) { fi = document.createElement('link'); fi.rel = 'icon'; document.head.appendChild(fi); } fi.href = this._branding.siteIconUrl; }
+          else if (fi) { fi.remove(); }
           this.settingsModal.show = false;
           this.showToast('Settings saved', 'success');
         } else { this.showToast('Failed to save settings', 'error'); }

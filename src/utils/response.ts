@@ -65,7 +65,8 @@ export async function fetchAssetHtml(assets: Fetcher, requestUrl: string, assetP
 
 export function injectBranding(html: string, branding: { siteName: string; siteIconUrl: string }): string {
   const tag = `<script id="branding-data" type="application/json">${JSON.stringify(branding)}</script>`;
-  return html.replace('</head>', tag + '</head>');
+  const favicon = branding.siteIconUrl ? `<link rel="icon" type="image/png" href="${branding.siteIconUrl}">` : '';
+  return html.replace('</head>', favicon + tag + '</head>');
 }
 
 // ─── Size Formatting ──────────────────────────────────────────────────
