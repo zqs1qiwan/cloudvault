@@ -1,7 +1,7 @@
 {
   "name": "cloudvault",
   "version": "1.0.0",
-  "private": true,
+  "license": "MIT",
   "description": "Personal cloud storage platform on Cloudflare Workers + R2",
   "scripts": {
     "dev": "wrangler dev",
