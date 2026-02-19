@@ -4,6 +4,7 @@ function cloudvault() {
     folders: [],
     expandedFolders: {},
     _expandVer: 0,
+    _folderShareHash: '',
     currentFolder: 'root',
     view: localStorage.getItem('cv-view') || 'grid',
     searchQuery: '',
@@ -119,6 +120,9 @@ function cloudvault() {
     },
 
     toggleFolderExpand(path) {
+      const now = Date.now();
+      if (this._lastToggle && now - this._lastToggle < 50) return;
+      this._lastToggle = now;
       if (this.expandedFolders[path]) delete this.expandedFolders[path];
       else this.expandedFolders[path] = true;
       this._expandVer++;
@@ -196,11 +200,12 @@ function cloudvault() {
     async toggleFolderShare(folder) {
       this.folderCtxMenu.show = false;
       if (!folder) return;
+      const folderName = folder.name;
       try {
         const res = await this.apiFetch('/api/folders/share', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ folder: folder.name }),
+          body: JSON.stringify({ folder: folderName }),
         });
         if (res && res.ok) {
           const data = await res.json();
@@ -214,11 +219,12 @@ function cloudvault() {
     async toggleFolderExclude(folder) {
       this.folderCtxMenu.show = false;
       if (!folder) return;
+      const folderName = folder.name;
       try {
         const res = await this.apiFetch('/api/folders/exclude', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ folder: folder.name }),
+          body: JSON.stringify({ folder: folderName }),
         });
         if (res && res.ok) {
           const data = await res.json();
@@ -253,8 +259,19 @@ function cloudvault() {
           if (this.currentFolder === oldName || this.currentFolder.startsWith(oldName + '/')) {
             this.currentFolder = fullNewName + this.currentFolder.slice(oldName.length);
           }
+          if (this.expandedFolders[oldName]) {
+            delete this.expandedFolders[oldName];
+            this.expandedFolders[fullNewName] = true;
+          }
+          this.folders = this.folders.map(f => {
+            if (f.name === oldName) return { ...f, name: fullNewName };
+            if (f.name.startsWith(oldName + '/')) return { ...f, name: fullNewName + f.name.slice(oldName.length) };
+            return f;
+          });
+          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
+          this._expandVer++;
           this.showToast('Folder renamed', 'success');
-          await Promise.all([this.fetchFolders(), this.fetchFiles()]);
+          await this.fetchFiles();
         } else { this.showToast('Rename failed', 'error'); }
       } catch { this.showToast('Rename failed', 'error'); }
     },
@@ -278,8 +295,12 @@ function cloudvault() {
           if (this.currentFolder === folder || this.currentFolder.startsWith(folder + '/')) {
             this.currentFolder = 'root';
           }
+          delete this.expandedFolders[folder];
+          this.folders = this.folders.filter(f => f.name !== folder && !f.name.startsWith(folder + '/'));
+          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
+          this._expandVer++;
           this.showToast('Folder deleted', 'success');
-          await Promise.all([this.fetchFolders(), this.fetchFiles()]);
+          await this.fetchFiles();
         } else { this.showToast('Delete failed', 'error'); }
       } catch { this.showToast('Delete failed', 'error'); }
     },
@@ -330,7 +351,9 @@ function cloudvault() {
       const res = await this.apiFetch('/api/folders');
       if (!res) return;
       const data = await res.json();
-      this.folders = (data.folders || []).map(f => typeof f === 'string' ? { name: f, shared: false, directlyShared: false, excluded: false } : f);
+      const folders = (data.folders || []).map(f => typeof f === 'string' ? { name: f, shared: false, directlyShared: false, excluded: false } : f);
+      this.folders = folders;
+      this._folderShareHash = folders.map(f => f.name + (f.shared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
     },
 
     async fetchStats() {
@@ -359,15 +382,16 @@ function cloudvault() {
     },
 
     navigateFolder(folder) {
-      if (this.currentFolder === folder && folder !== 'root') {
-        this.toggleFolderExpand(folder);
-        return;
-      }
+      const now = Date.now();
+      if (this._lastNav && now - this._lastNav < 50) return;
+      this._lastNav = now;
+      const wasOnSameFolder = this.currentFolder === folder;
       this.currentFolder = folder;
       this.searchQuery = '';
       this.clearSelection();
       this.sidebarOpen = false;
       if (folder !== 'root') {
+        // Always expand the target folder and all parents on navigation
         const parts = folder.split('/');
         let path = '';
         for (let i = 0; i < parts.length; i++) {
@@ -376,7 +400,7 @@ function cloudvault() {
         }
         this._expandVer++;
       }
-      this.fetchFiles();
+      if (!wasOnSameFolder) this.fetchFiles();
     },
 
     toggleSort(field) {
@@ -478,9 +502,11 @@ function cloudvault() {
           body: JSON.stringify({ name, parent: this.currentFolder }),
         });
         if (res && res.ok) {
-          const data = await res.json();
-          await this.fetchFolders();
-          this._expandVer++;
+          const fullName = this.currentFolder === 'root' ? name : this.currentFolder + '/' + name;
+          if (!this.folders.find(f => f.name === fullName)) {
+            this.folders = [...this.folders, { name: fullName, shared: false, directlyShared: false, excluded: false }];
+          }
+          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
           if (this.currentFolder !== 'root') {
             const parts = this.currentFolder.split('/');
             let path = '';
@@ -489,6 +515,7 @@ function cloudvault() {
               this.expandedFolders[path] = true;
             }
           }
+          this._expandVer++;
           this.showToast('Folder created', 'success');
         } else { this.showToast('Failed to create folder', 'error'); }
       } catch { this.showToast('Failed to create folder', 'error'); }

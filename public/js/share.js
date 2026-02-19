@@ -161,12 +161,15 @@
 
   function getFileIcon(type, name) {
     if (!type) return '\uD83D\uDCC4';
+    var n = (name || '').toLowerCase();
     if (type.startsWith('image/')) return '\uD83D\uDDBC\uFE0F';
     if (type.startsWith('video/')) return '\uD83C\uDFAC';
     if (type.startsWith('audio/')) return '\uD83C\uDFB5';
     if (type === 'application/pdf') return '\uD83D\uDCC4';
-    if (type.includes('zip') || type.includes('tar')) return '\uD83D\uDCE6';
+    if (type.includes('zip') || type.includes('tar') || type.includes('rar') || type.includes('gzip') || type.includes('x-7z')) return '\uD83D\uDCE6';
+    if (/\.(apk|aab)$/.test(n)) return '\uD83E\uDD16';
+    if (/\.(exe|msi|dmg|pkg|deb|rpm)$/.test(n)) return '\uD83D\uDCBF';
     if (type.startsWith('text/') || isCodeFile(name)) return '\uD83D\uDCDD';
-    return '\uD83D\uDCC1';
+    return '\uD83D\uDCC4';
   }
 })();
