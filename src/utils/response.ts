@@ -63,6 +63,11 @@ export async function fetchAssetHtml(assets: Fetcher, requestUrl: string, assetP
   return res.text();
 }
 
+export function injectBranding(html: string, branding: { siteName: string; siteIconUrl: string }): string {
+  const tag = `<script id="branding-data" type="application/json">${JSON.stringify(branding)}</script>`;
+  return html.replace('</head>', tag + '</head>');
+}
+
 // ─── Size Formatting ──────────────────────────────────────────────────
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';

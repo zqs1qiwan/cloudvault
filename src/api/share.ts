@@ -377,7 +377,7 @@ export async function listPublicShared(request: Request, env: Env): Promise<Resp
   return json({
     files,
     sharedFolders: visibleFolders.sort(),
-    settings: { showLoginButton: settings.showLoginButton },
+    settings: { showLoginButton: settings.showLoginButton, siteName: settings.siteName, siteIconUrl: settings.siteIconUrl },
   });
 }
 

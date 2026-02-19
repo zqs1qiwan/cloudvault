@@ -21,7 +21,10 @@ A personal cloud storage platform built on **Cloudflare Workers + R2**. Zero ser
 - **Type Filtering** — Filter files by category (images, videos, audio, documents, code, etc.)
 - **Dark/Light Mode** — Toggle between dark and light themes
 - **Responsive** — Mobile-friendly sidebar and layout
+- **Custom Branding** — Customize site name and logo icon via Settings
 - **Single Password Auth** — Simple admin password via Cloudflare secret
+
+📖 **[Wiki Documentation / 文档](https://github.com/zqs1qiwan/cloudvault/wiki)** — Installation, configuration, usage guide, and FAQ in English and Chinese.
 
 ## Tech Stack
 
@@ -162,7 +165,10 @@ cloudvault/
 - **类型筛选** — 按类别筛选文件（图片、视频、音频、文档、代码等）
 - **深色/浅色模式** — 主题切换
 - **响应式设计** — 移动端适配
+- **自定义品牌** — 在设置中自定义站点名称和 Logo 图标
 - **单密码认证** — 通过 Cloudflare Secret 配置管理员密码
+
+📖 **[Wiki 文档 / Documentation](https://github.com/zqs1qiwan/cloudvault/wiki)** — 安装指南、配置说明、使用指南和常见问题，支持中英双语。
 
 ## 快速开始
 

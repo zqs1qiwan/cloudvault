@@ -1,5 +1,5 @@
 import { Env } from './utils/types';
-import { error, redirect, corsPreflightResponse, fetchAssetHtml } from './utils/response';
+import { error, redirect, corsPreflightResponse, fetchAssetHtml, injectBranding } from './utils/response';
 import { handleLogin, handleLogout, authMiddleware, validateSession } from './auth';
 import { getSettings } from './api/settings';
 import * as files from './api/files';
@@ -31,7 +31,12 @@ export default {
       }
 
       if (path === '/login') {
-        return env.ASSETS.fetch(new Request(url.toString(), request));
+        const loginSettings = await getSettings(env);
+        let loginHtml = await fetchAssetHtml(env.ASSETS, request.url, '/login.html');
+        loginHtml = injectBranding(loginHtml, { siteName: loginSettings.siteName, siteIconUrl: loginSettings.siteIconUrl });
+        return new Response(loginHtml, {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        });
       }
 
       if (path === '/api/public/shared' && method === 'GET') {
@@ -51,7 +56,9 @@ export default {
       if (path === '/admin' && method === 'GET') {
         const authResponse = await authMiddleware(request, env);
         if (authResponse) return authResponse;
-        const dashHtml = await fetchAssetHtml(env.ASSETS, request.url, '/dashboard.html');
+        const adminSettings = await getSettings(env);
+        let dashHtml = await fetchAssetHtml(env.ASSETS, request.url, '/dashboard.html');
+        dashHtml = injectBranding(dashHtml, { siteName: adminSettings.siteName, siteIconUrl: adminSettings.siteIconUrl });
         return new Response(dashHtml, {
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
@@ -84,7 +91,8 @@ async function handleRootPage(request: Request, env: Env): Promise<Response> {
     return redirect('/login');
   }
 
-  const guestHtml = await fetchAssetHtml(env.ASSETS, request.url, '/guest.html');
+  let guestHtml = await fetchAssetHtml(env.ASSETS, request.url, '/guest.html');
+  guestHtml = injectBranding(guestHtml, { siteName: siteSettings.siteName, siteIconUrl: siteSettings.siteIconUrl });
   return new Response(guestHtml, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });

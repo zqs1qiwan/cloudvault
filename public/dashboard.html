@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CloudVault</title>
+  <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName}catch{}</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -26,10 +27,17 @@
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
         <div class="flex items-center gap-2">
-          <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:var(--accent-soft)">
-            <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
-          </div>
-          <span class="font-semibold text-sm hidden sm:inline">CloudVault</span>
+          <template x-if="!_branding.siteIconUrl">
+            <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:var(--accent-soft)">
+              <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
+            </div>
+          </template>
+          <template x-if="_branding.siteIconUrl">
+            <div class="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden" style="background:var(--accent-soft)">
+              <img :src="_branding.siteIconUrl" class="w-full h-full object-contain">
+            </div>
+          </template>
+          <span class="font-semibold text-sm hidden sm:inline" x-text="_branding.siteName"></span>
         </div>
       </div>
 
@@ -167,7 +175,7 @@
               </div>
               <div class="w-full aspect-square rounded-lg flex items-center justify-center mb-2 overflow-hidden" style="background:var(--bg-tertiary)">
                 <template x-if="file.type.startsWith('image/')">
-                  <img :src="'/api/files/' + file.id + '/thumbnail'" class="w-full h-full object-cover" loading="lazy" @error="$el.style.display='none'">
+                  <img :src="'/api/files/' + file.id + '/thumbnail'" class="w-full h-full object-contain" loading="lazy" @error="$el.style.display='none'">
                 </template>
                 <template x-if="!file.type.startsWith('image/')">
                   <span class="text-3xl" x-text="getFileIcon(file.type, file.name)"></span>
@@ -328,20 +336,43 @@
   <!-- SETTINGS MODAL -->
   <div x-show="settingsModal.show" x-transition class="modal-backdrop" @click.self="settingsModal.show = false">
     <div class="modal-content" style="max-width:480px">
-      <h3 class="text-lg font-semibold mb-5">Site Settings</h3>
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-semibold">Site Settings</h3>
+        <a href="https://github.com/zqs1qiwan/cloudvault/wiki" target="_blank" rel="noopener" class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style="background:var(--bg-tertiary);color:var(--text-muted)" title="Help & Documentation">?</a>
+      </div>
 
       <div class="space-y-4">
-        <label class="flex items-center justify-between cursor-pointer">
-          <div>
-            <span class="text-sm font-medium">Enable Guest Page</span>
-            <p class="text-xs mt-0.5" style="color:var(--text-muted)">Show public shared files at the home page</p>
+        <div>
+          <label class="block text-sm font-medium mb-1">Site Name</label>
+          <input type="text" x-model="settingsModal.siteName" placeholder="CloudVault" maxlength="50" class="w-full text-sm">
+          <p class="text-xs mt-0.5" style="color:var(--text-muted)">Displayed in header, titles, and public pages</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1">Icon URL</label>
+          <input type="url" x-model="settingsModal.siteIconUrl" placeholder="https://example.com/logo.png" class="w-full text-sm">
+          <p class="text-xs mt-0.5" style="color:var(--text-muted)">Custom logo image URL (leave empty for default cloud icon)</p>
+          <div x-show="settingsModal.siteIconUrl" class="mt-2 flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden" style="background:var(--bg-tertiary)">
+              <img :src="settingsModal.siteIconUrl" class="w-full h-full object-contain" @error="$el.style.display='none'">
+            </div>
+            <span class="text-xs" style="color:var(--text-muted)">Preview</span>
           </div>
-          <div class="relative">
-            <input type="checkbox" x-model="settingsModal.guestPageEnabled" class="sr-only peer">
-            <div class="w-10 h-5 rounded-full transition-colors" style="background:var(--bg-tertiary)" :style="settingsModal.guestPageEnabled ? 'background:var(--accent)' : ''"></div>
-            <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform" :class="settingsModal.guestPageEnabled ? 'translate-x-5' : ''"></div>
-          </div>
-        </label>
+        </div>
+
+        <div class="border-t pt-4" style="border-color:var(--border)">
+          <label class="flex items-center justify-between cursor-pointer">
+            <div>
+              <span class="text-sm font-medium">Enable Guest Page</span>
+              <p class="text-xs mt-0.5" style="color:var(--text-muted)">Show public shared files at the home page</p>
+            </div>
+            <div class="relative">
+              <input type="checkbox" x-model="settingsModal.guestPageEnabled" class="sr-only peer">
+              <div class="w-10 h-5 rounded-full transition-colors" style="background:var(--bg-tertiary)" :style="settingsModal.guestPageEnabled ? 'background:var(--accent)' : ''"></div>
+              <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform" :class="settingsModal.guestPageEnabled ? 'translate-x-5' : ''"></div>
+            </div>
+          </label>
+        </div>
 
         <label class="flex items-center justify-between cursor-pointer" x-show="settingsModal.guestPageEnabled" x-transition>
           <div>

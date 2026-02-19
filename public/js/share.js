@@ -73,7 +73,9 @@
     document.getElementById('file-date').textContent = formatDate(file.uploadedAt);
     document.getElementById('file-downloads').textContent = (file.downloads || 0) + ' downloads';
     document.getElementById('file-icon').textContent = getFileIcon(file.type, file.name);
-    document.title = file.name + ' — CloudVault';
+    var brandName = 'CloudVault';
+    try { brandName = JSON.parse(document.getElementById('branding-data')?.textContent || '{}').siteName || brandName; } catch {}
+    document.title = file.name + ' — ' + brandName;
 
     var token = window.location.pathname.split('/').pop();
     var downloadUrl = '/s/' + token + '/download';
@@ -86,7 +88,9 @@
 
   function showFolder(data) {
     document.getElementById('folder-view').classList.remove('hidden');
-    document.title = (data.folderName || 'Shared Folder') + ' — CloudVault';
+    var brandName = 'CloudVault';
+    try { brandName = JSON.parse(document.getElementById('branding-data')?.textContent || '{}').siteName || brandName; } catch {}
+    document.title = (data.folderName || 'Shared Folder') + ' — ' + brandName;
 
     var token = window.location.pathname.split('/').pop();
     var titleEl = document.getElementById('folder-title');

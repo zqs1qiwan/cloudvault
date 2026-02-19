@@ -25,7 +25,8 @@ function cloudvault() {
     renameModal: { show: false, file: null, newName: '' },
     deleteModal: { show: false, ids: [] },
     moveModal: { show: false, files: [], targetFolder: 'root' },
-    settingsModal: { show: false, guestPageEnabled: false, showLoginButton: true },
+    _branding: JSON.parse(document.getElementById('branding-data')?.textContent || '{"siteName":"CloudVault","siteIconUrl":""}'),
+    settingsModal: { show: false, guestPageEnabled: false, showLoginButton: true, siteName: 'CloudVault', siteIconUrl: '' },
     renameFolderModal: { show: false, oldName: '', newName: '' },
     deleteFolderModal: { show: false, folder: '' },
     typeFilter: 'all',
@@ -808,6 +809,8 @@ function cloudvault() {
           const data = await res.json();
           this.settingsModal.guestPageEnabled = data.guestPageEnabled || false;
           this.settingsModal.showLoginButton = data.showLoginButton !== false;
+          this.settingsModal.siteName = data.siteName || 'CloudVault';
+          this.settingsModal.siteIconUrl = data.siteIconUrl || '';
         }
       } catch { /* use defaults */ }
     },
@@ -820,9 +823,14 @@ function cloudvault() {
           body: JSON.stringify({
             guestPageEnabled: this.settingsModal.guestPageEnabled,
             showLoginButton: this.settingsModal.showLoginButton,
+            siteName: this.settingsModal.siteName,
+            siteIconUrl: this.settingsModal.siteIconUrl,
           }),
         });
         if (res && res.ok) {
+          this._branding.siteName = this.settingsModal.siteName || 'CloudVault';
+          this._branding.siteIconUrl = this.settingsModal.siteIconUrl || '';
+          document.title = this._branding.siteName;
           this.settingsModal.show = false;
           this.showToast('Settings saved', 'success');
         } else { this.showToast('Failed to save settings', 'error'); }

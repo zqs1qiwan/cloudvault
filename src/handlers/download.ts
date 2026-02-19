@@ -1,6 +1,7 @@
 import { Env, FileMeta, KV_PREFIX } from '../utils/types';
-import { error, getPreviewType, fetchAssetHtml } from '../utils/response';
+import { error, getPreviewType, fetchAssetHtml, injectBranding } from '../utils/response';
 import { verifySharePassword, resolveFolderShareToken, browseFolderShareLink } from '../api/share';
+import { getSettings } from '../api/settings';
 
 function extractToken(url: URL): string | null {
   const parts = url.pathname.split('/');
@@ -146,8 +147,10 @@ export async function handleFolderSharePreview(request: Request, env: Env): Prom
 }
 
 async function serveShareHtml(env: Env, request: Request, fileData: Record<string, unknown>): Promise<Response> {
+  const settings = await getSettings(env);
   let html = await fetchAssetHtml(env.ASSETS, request.url, '/share.html');
 
+  html = injectBranding(html, { siteName: settings.siteName, siteIconUrl: settings.siteIconUrl });
   html = html.replace(
     '<script id="file-data" type="application/json">{}</script>',
     '<script id="file-data" type="application/json">' + JSON.stringify(fileData) + '</script>'

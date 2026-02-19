@@ -76,11 +76,15 @@ export interface MultipartCompleteRequest {
 export interface SiteSettings {
   guestPageEnabled: boolean;
   showLoginButton: boolean;
+  siteName: string;
+  siteIconUrl: string;        // URL to custom logo/icon image (empty = default cloud icon)
 }
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   guestPageEnabled: false,
   showLoginButton: true,
+  siteName: 'CloudVault',
+  siteIconUrl: '',
 };
 
 // ─── KV Key Patterns ─────────────────────────────────────────────────

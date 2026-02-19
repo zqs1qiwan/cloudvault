@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CloudVault — Shared File</title>
+  <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName+' — Shared File'}catch{}</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -28,10 +29,10 @@
 
   <header class="border-b border-gray-800 px-4 py-3">
     <div class="max-w-4xl mx-auto flex items-center gap-2">
-      <div class="w-7 h-7 rounded-lg flex items-center justify-center bg-accent-600/20">
+      <div id="brand-icon" class="w-7 h-7 rounded-lg flex items-center justify-center bg-accent-600/20">
         <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
       </div>
-      <span class="font-semibold text-sm text-white">CloudVault</span>
+      <span id="brand-name" class="font-semibold text-sm text-white">CloudVault</span>
     </div>
   </header>
 
@@ -112,10 +113,23 @@
     </div>
   </main>
 
-  <footer class="text-center py-4 text-xs text-gray-600">Powered by CloudVault</footer>
+  <footer class="text-center py-4 text-xs text-gray-600">Powered by <a href="https://github.com/zqs1qiwan/cloudvault" target="_blank" rel="noopener" class="hover:text-gray-400 underline">zqs1qiwan/CloudVault</a></footer>
 
   <div class="copy-toast" id="copy-toast">Link copied to clipboard</div>
 
+  <script>
+    (function() {
+      try {
+        var b = JSON.parse(document.getElementById('branding-data')?.textContent || '{}');
+        if (b.siteName) document.getElementById('brand-name').textContent = b.siteName;
+        if (b.siteIconUrl) {
+          var iconEl = document.getElementById('brand-icon');
+          iconEl.innerHTML = '<img src="' + b.siteIconUrl + '" class="w-full h-full object-contain">';
+          iconEl.classList.add('overflow-hidden');
+        }
+      } catch {}
+    })();
+  </script>
   <script src="/js/share.js"></script>
 </body>
 </html>
