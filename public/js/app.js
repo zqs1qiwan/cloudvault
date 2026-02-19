@@ -205,6 +205,8 @@ function cloudvault() {
           const data = await res.json();
           this.showToast(data.shared ? 'Folder shared' : 'Folder unshared', 'success');
           await this.fetchFolders();
+          const updated = this.folders.find(f => f.name === folder.name);
+          if (updated) this.folderCtxMenu.folder = updated;
         } else { this.showToast('Failed to toggle folder sharing', 'error'); }
       } catch { this.showToast('Failed to toggle folder sharing', 'error'); }
     },
@@ -222,6 +224,8 @@ function cloudvault() {
           const data = await res.json();
           this.showToast(data.excluded ? 'Folder excluded from share' : 'Folder included in share', 'success');
           await this.fetchFolders();
+          const updated = this.folders.find(f => f.name === folder.name);
+          if (updated) this.folderCtxMenu.folder = updated;
         } else { this.showToast('Failed to toggle folder exclusion', 'error'); }
       } catch { this.showToast('Failed to toggle folder exclusion', 'error'); }
     },
@@ -357,7 +361,12 @@ function cloudvault() {
 
     navigateFolder(folder) {
       if (this.currentFolder === folder && folder !== 'root') {
-        this.toggleFolderExpand(folder);
+        if (this.expandedFolders.has(folder)) {
+          this.expandedFolders.delete(folder);
+        } else {
+          this.expandedFolders.add(folder);
+        }
+        this.expandedFolders = new Set(this.expandedFolders);
         return;
       }
       this.currentFolder = folder;
@@ -781,15 +790,27 @@ function cloudvault() {
 
     getFileIcon(type, name) {
       if (!type) return '\uD83D\uDCC4';
+      const n = (name || '').toLowerCase();
       if (type.startsWith('image/')) return '\uD83D\uDDBC\uFE0F';
       if (type.startsWith('video/')) return '\uD83C\uDFAC';
       if (type.startsWith('audio/')) return '\uD83C\uDFB5';
       if (type === 'application/pdf') return '\uD83D\uDCC4';
-      if (type.includes('zip') || type.includes('tar') || type.includes('gzip')) return '\uD83D\uDCE6';
-      if (type.includes('spreadsheet') || name?.endsWith('.csv') || name?.endsWith('.xlsx')) return '\uD83D\uDCCA';
-      if (type.includes('document') || name?.endsWith('.doc') || name?.endsWith('.docx')) return '\uD83D\uDCC3';
-      if (type.startsWith('text/') || name?.match(/\.(js|ts|py|rb|go|rs|java|c|cpp|h|sh|yaml|yml|json|toml|md|html|css|sql)$/i)) return '\uD83D\uDCDD';
-      return '\uD83D\uDCC1';
+      if (type.includes('zip') || type.includes('tar') || type.includes('gzip') || type.includes('rar') ||
+          type.includes('x-7z') || n.match(/\.(zip|tar|gz|rar|7z|bz2|xz|tgz)$/)) return '\uD83D\uDCE6';
+      if (n.match(/\.(apk|ipa|aab)$/)) return '\uD83D\uDCF1';
+      if (n.match(/\.(exe|msi|dmg|pkg|deb|rpm|appimage)$/)) return '\uD83D\uDCBF';
+      if (n.match(/\.(iso|img)$/)) return '\uD83D\uDCBF';
+      if (n.match(/\.(ttf|otf|woff|woff2|eot)$/)) return '\uD83D\uDD24';
+      if (n.match(/\.(svg)$/)) return '\uD83C\uDFA8';
+      if (n.match(/\.(torrent)$/)) return '\uD83E\uDDF2';
+      if (n.match(/\.(db|sqlite|sqlite3|mdb)$/)) return '\uD83D\uDDC4\uFE0F';
+      if (n.match(/\.(key|pem|cer|crt|p12|pfx)$/)) return '\uD83D\uDD10';
+      if (type.includes('spreadsheet') || n.match(/\.(csv|xls|xlsx)$/)) return '\uD83D\uDCCA';
+      if (type.includes('presentation') || n.match(/\.(ppt|pptx|key)$/)) return '\uD83D\uDCCA';
+      if (type.includes('document') || n.match(/\.(doc|docx|odt|rtf)$/)) return '\uD83D\uDCC3';
+      if (type.startsWith('text/') || type.includes('javascript') || type.includes('json') || type.includes('xml') ||
+          n.match(/\.(js|ts|py|rb|go|rs|java|c|cpp|h|sh|yaml|yml|json|toml|md|html|css|sql|swift|kt|php|lua|tsx|jsx|vue|svelte|zig|nim|dart|r|m|mm|scala|clj|ex|exs|hs|erl|ps1|bat|cmd)$/)) return '\uD83D\uDCDD';
+      return '\uD83D\uDCC4';
     },
   };
 }
