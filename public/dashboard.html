@@ -354,7 +354,7 @@
           <p class="text-xs mt-0.5" style="color:var(--text-muted)">Custom logo image URL (leave empty for default cloud icon)</p>
           <div x-show="settingsModal.siteIconUrl" class="mt-2 flex items-center gap-2">
             <div class="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden" style="background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%);background-size:8px 8px;background-position:0 0,0 4px,4px -4px,-4px 0">
-              <img :src="settingsModal.siteIconUrl" class="w-full h-full object-contain" @error="$el.style.display='none'">
+              <img :src="settingsModal.siteIconUrl" class="w-full h-full object-contain" x-show="!settingsModal._iconError" @error="settingsModal._iconError = true" @load="settingsModal._iconError = false">
             </div>
             <span class="text-xs" style="color:var(--text-muted)">Preview</span>
           </div>

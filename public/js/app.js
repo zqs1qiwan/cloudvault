@@ -26,7 +26,7 @@ function cloudvault() {
     deleteModal: { show: false, ids: [] },
     moveModal: { show: false, files: [], targetFolder: 'root' },
     _branding: JSON.parse(document.getElementById('branding-data')?.textContent || '{"siteName":"CloudVault","siteIconUrl":""}'),
-    settingsModal: { show: false, guestPageEnabled: false, showLoginButton: true, siteName: 'CloudVault', siteIconUrl: '' },
+    settingsModal: { show: false, guestPageEnabled: false, showLoginButton: true, siteName: 'CloudVault', siteIconUrl: '', _iconError: false },
     renameFolderModal: { show: false, oldName: '', newName: '' },
     deleteFolderModal: { show: false, folder: '' },
     typeFilter: 'all',
@@ -814,6 +814,7 @@ function cloudvault() {
           this.settingsModal.showLoginButton = data.showLoginButton !== false;
           this.settingsModal.siteName = data.siteName || 'CloudVault';
           this.settingsModal.siteIconUrl = data.siteIconUrl || '';
+          this.settingsModal._iconError = false;
         }
       } catch { /* use defaults */ }
     },

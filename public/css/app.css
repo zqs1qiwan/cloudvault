@@ -168,7 +168,7 @@ html.light {
 .badge-guest { background: rgba(168,85,247,0.15); color: #a855f7; }
 .badge-expired { background: rgba(239,68,68,0.15); color: var(--danger); }
 
-input[type="text"], input[type="password"], input[type="number"], input[type="search"] {
+input[type="text"], input[type="url"], input[type="password"], input[type="number"], input[type="search"] {
   background: var(--bg-primary); border: 1px solid var(--border);
   color: var(--text-primary); border-radius: 8px; padding: 8px 12px;
   outline: none; transition: border-color 0.15s;
