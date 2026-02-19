@@ -173,6 +173,7 @@ input[type="text"], input[type="password"], input[type="number"], input[type="se
   color: var(--text-primary); border-radius: 8px; padding: 8px 12px;
   outline: none; transition: border-color 0.15s;
 }
+input[type="search"].pl-10 { padding-left: 2.5rem; }
 input:focus { border-color: var(--accent); }
 
 .btn-primary { background: var(--accent); color: white; padding: 8px 16px; border-radius: 8px; font-weight: 500; border: none; cursor: pointer; transition: background 0.15s; }

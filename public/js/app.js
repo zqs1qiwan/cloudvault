@@ -2,7 +2,8 @@ function cloudvault() {
   return {
     files: [],
     folders: [],
-    expandedFolders: new Set(),
+    expandedFolders: {},
+    _expandVer: 0,
     currentFolder: 'root',
     view: localStorage.getItem('cv-view') || 'grid',
     searchQuery: '',
@@ -118,9 +119,9 @@ function cloudvault() {
     },
 
     toggleFolderExpand(path) {
-      if (this.expandedFolders.has(path)) this.expandedFolders.delete(path);
-      else this.expandedFolders.add(path);
-      this.expandedFolders = new Set(this.expandedFolders);
+      if (this.expandedFolders[path]) delete this.expandedFolders[path];
+      else this.expandedFolders[path] = true;
+      this._expandVer++;
     },
 
     get folderTree() {
@@ -155,7 +156,7 @@ function cloudvault() {
       let html = '';
       for (const node of nodes) {
         const isActive = this.currentFolder === node.path;
-        const isExpanded = this.expandedFolders.has(node.path);
+        const isExpanded = !!this.expandedFolders[node.path];
         const hasChildren = node.children && node.children.length > 0;
         const indent = depth * 16;
         let sharedBadge = '';
@@ -205,8 +206,7 @@ function cloudvault() {
           const data = await res.json();
           this.showToast(data.shared ? 'Folder shared' : 'Folder unshared', 'success');
           await this.fetchFolders();
-          const updated = this.folders.find(f => f.name === folder.name);
-          if (updated) this.folderCtxMenu.folder = updated;
+          this._expandVer++;
         } else { this.showToast('Failed to toggle folder sharing', 'error'); }
       } catch { this.showToast('Failed to toggle folder sharing', 'error'); }
     },
@@ -224,8 +224,7 @@ function cloudvault() {
           const data = await res.json();
           this.showToast(data.excluded ? 'Folder excluded from share' : 'Folder included in share', 'success');
           await this.fetchFolders();
-          const updated = this.folders.find(f => f.name === folder.name);
-          if (updated) this.folderCtxMenu.folder = updated;
+          this._expandVer++;
         } else { this.showToast('Failed to toggle folder exclusion', 'error'); }
       } catch { this.showToast('Failed to toggle folder exclusion', 'error'); }
     },
@@ -361,12 +360,7 @@ function cloudvault() {
 
     navigateFolder(folder) {
       if (this.currentFolder === folder && folder !== 'root') {
-        if (this.expandedFolders.has(folder)) {
-          this.expandedFolders.delete(folder);
-        } else {
-          this.expandedFolders.add(folder);
-        }
-        this.expandedFolders = new Set(this.expandedFolders);
+        this.toggleFolderExpand(folder);
         return;
       }
       this.currentFolder = folder;
@@ -378,9 +372,9 @@ function cloudvault() {
         let path = '';
         for (let i = 0; i < parts.length; i++) {
           path = path ? path + '/' + parts[i] : parts[i];
-          this.expandedFolders.add(path);
+          this.expandedFolders[path] = true;
         }
-        this.expandedFolders = new Set(this.expandedFolders);
+        this._expandVer++;
       }
       this.fetchFiles();
     },
@@ -484,7 +478,17 @@ function cloudvault() {
           body: JSON.stringify({ name, parent: this.currentFolder }),
         });
         if (res && res.ok) {
+          const data = await res.json();
           await this.fetchFolders();
+          this._expandVer++;
+          if (this.currentFolder !== 'root') {
+            const parts = this.currentFolder.split('/');
+            let path = '';
+            for (const part of parts) {
+              path = path ? path + '/' + part : part;
+              this.expandedFolders[path] = true;
+            }
+          }
           this.showToast('Folder created', 'success');
         } else { this.showToast('Failed to create folder', 'error'); }
       } catch { this.showToast('Failed to create folder', 'error'); }
