@@ -432,7 +432,7 @@ export async function listFolders(_request: Request, env: Env): Promise<Response
   const excludedFolders = await getExcludedFolders(env);
   const folderList = Array.from(folderSet).sort().map(name => ({
     name,
-    shared: isFolderShared(name, sharedFolders),
+    shared: isFolderShared(name, sharedFolders, excludedFolders),
     directlyShared: sharedFolders.has(name),
     excluded: excludedFolders.has(name),
   }));

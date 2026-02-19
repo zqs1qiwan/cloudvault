@@ -57,11 +57,12 @@
 
     <!-- SIDEBAR -->
     <aside class="sidebar w-56 flex-shrink-0 border-r p-3 flex flex-col gap-1 overflow-y-auto" :class="{'open': sidebarOpen}" style="background:var(--bg-secondary);border-color:var(--border)">
-      <div class="sidebar-item" :class="{'active': currentFolder === 'root'}" @click="navigateFolder('root')">
+      <div class="sidebar-item tree-item" :class="{'active': currentFolder === 'root'}" data-folder-path="root" style="padding-left:12px">
+        <svg class="w-3 h-3 tree-chevron" :class="{'expanded': expandedFolders['__root__']}" data-toggle-folder="__root__" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>
         All Files
       </div>
-      <div x-html="[_expandVer, currentFolder, _folderShareHash, renderFolderTree(folderTree, 0)].pop()"></div>
+      <div x-show="expandedFolders['__root__']" x-html="[_expandVer, currentFolder, _folderShareHash, renderFolderTree(folderTree, 1)].pop()"></div>
 
       <div class="mt-auto pt-4 px-2">
         <div class="text-xs mb-2" style="color:var(--text-muted)">Storage</div>
@@ -363,14 +364,30 @@
 
   <!-- FOLDER CONTEXT MENU -->
   <div x-show="folderCtxMenu.show" x-transition @click.away="folderCtxMenu.show = false" class="ctx-menu" :style="'top:'+folderCtxMenu.y+'px;left:'+folderCtxMenu.x+'px'">
-    <button @click="toggleFolderShare(folderCtxMenu.folder)">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-      <span x-text="folderCtxMenu.folder?.directlyShared ? 'Unshare (Guest)' : 'Share (Guest)'"></span>
-    </button>
-    <button x-show="folderCtxMenu.folder?.shared || folderCtxMenu.folder?.directlyShared" @click="toggleFolderExclude(folderCtxMenu.folder)">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-      <span x-text="folderCtxMenu.folder?.excluded ? 'Include in Share' : 'Exclude from Share'"></span>
-    </button>
+    <template x-if="folderCtxMenu.folder?.excluded">
+      <button @click="toggleFolderExclude(folderCtxMenu.folder)">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Include in Share
+      </button>
+    </template>
+    <template x-if="!folderCtxMenu.folder?.excluded && folderCtxMenu.folder?.directlyShared">
+      <button @click="toggleFolderShare(folderCtxMenu.folder)">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+        Unshare (Guest)
+      </button>
+    </template>
+    <template x-if="!folderCtxMenu.folder?.excluded && !folderCtxMenu.folder?.directlyShared && folderCtxMenu.folder?.shared">
+      <button @click="toggleFolderExclude(folderCtxMenu.folder)">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+        Exclude from Share
+      </button>
+    </template>
+    <template x-if="!folderCtxMenu.folder?.excluded && !folderCtxMenu.folder?.directlyShared && !folderCtxMenu.folder?.shared">
+      <button @click="toggleFolderShare(folderCtxMenu.folder)">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Share (Guest)
+      </button>
+    </template>
     <button @click="showRenameFolderModal(folderCtxMenu.folder)">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"/></svg>
       Rename Folder

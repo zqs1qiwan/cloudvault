@@ -2,7 +2,7 @@ function cloudvault() {
   return {
     files: [],
     folders: [],
-    expandedFolders: {},
+    expandedFolders: { '__root__': true },
     _expandVer: 0,
     _folderShareHash: '',
     currentFolder: 'root',
@@ -196,6 +196,17 @@ function cloudvault() {
     _escAttr(s) {
       return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     },
+    _hasSharedAncestor(folderPath, excludeFolder) {
+      const parts = folderPath.split('/');
+      let path = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        path = path ? path + '/' + parts[i] : parts[i];
+        if (path === excludeFolder) continue;
+        const f = this.folders.find(fd => fd.name === path);
+        if (f && f.directlyShared && !f.excluded) return true;
+      }
+      return false;
+    },
 
     async toggleFolderShare(folder) {
       this.folderCtxMenu.show = false;
@@ -209,9 +220,24 @@ function cloudvault() {
         });
         if (res && res.ok) {
           const data = await res.json();
-          this.showToast(data.shared ? 'Folder shared' : 'Folder unshared', 'success');
-          await this.fetchFolders();
+          const nowShared = !!data.shared;
+          this.folders = this.folders.map(f => {
+            if (f.name === folderName) {
+              return { ...f, directlyShared: nowShared, shared: nowShared, excluded: false };
+            }
+            if (f.name.startsWith(folderName + '/')) {
+              if (nowShared && !f.excluded) {
+                return { ...f, shared: true };
+              } else if (!nowShared) {
+                const inherited = this._hasSharedAncestor(f.name, folderName);
+                return { ...f, shared: inherited };
+              }
+            }
+            return f;
+          });
+          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.directlyShared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
           this._expandVer++;
+          this.showToast(nowShared ? 'Folder shared' : 'Folder unshared', 'success');
         } else { this.showToast('Failed to toggle folder sharing', 'error'); }
       } catch { this.showToast('Failed to toggle folder sharing', 'error'); }
     },
@@ -228,9 +254,24 @@ function cloudvault() {
         });
         if (res && res.ok) {
           const data = await res.json();
-          this.showToast(data.excluded ? 'Folder excluded from share' : 'Folder included in share', 'success');
-          await this.fetchFolders();
+          const nowExcluded = !!data.excluded;
+          this.folders = this.folders.map(f => {
+            if (f.name === folderName) {
+              return { ...f, excluded: nowExcluded, shared: nowExcluded ? false : this._hasSharedAncestor(f.name, null) || f.directlyShared };
+            }
+            if (f.name.startsWith(folderName + '/')) {
+              if (nowExcluded) {
+                return { ...f, shared: false };
+              } else {
+                const inherited = f.directlyShared || this._hasSharedAncestor(f.name, null);
+                return { ...f, shared: inherited };
+              }
+            }
+            return f;
+          });
+          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.directlyShared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
           this._expandVer++;
+          this.showToast(nowExcluded ? 'Folder excluded from share' : 'Folder included in share', 'success');
         } else { this.showToast('Failed to toggle folder exclusion', 'error'); }
       } catch { this.showToast('Failed to toggle folder exclusion', 'error'); }
     },
@@ -268,7 +309,7 @@ function cloudvault() {
             if (f.name.startsWith(oldName + '/')) return { ...f, name: fullNewName + f.name.slice(oldName.length) };
             return f;
           });
-          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
+          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.directlyShared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
           this._expandVer++;
           this.showToast('Folder renamed', 'success');
           await this.fetchFiles();
@@ -297,7 +338,7 @@ function cloudvault() {
           }
           delete this.expandedFolders[folder];
           this.folders = this.folders.filter(f => f.name !== folder && !f.name.startsWith(folder + '/'));
-          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
+          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.directlyShared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
           this._expandVer++;
           this.showToast('Folder deleted', 'success');
           await this.fetchFiles();
@@ -353,7 +394,7 @@ function cloudvault() {
       const data = await res.json();
       const folders = (data.folders || []).map(f => typeof f === 'string' ? { name: f, shared: false, directlyShared: false, excluded: false } : f);
       this.folders = folders;
-      this._folderShareHash = folders.map(f => f.name + (f.shared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
+      this._folderShareHash = folders.map(f => f.name + (f.shared ? 1 : 0) + (f.directlyShared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
     },
 
     async fetchStats() {
@@ -504,9 +545,11 @@ function cloudvault() {
         if (res && res.ok) {
           const fullName = this.currentFolder === 'root' ? name : this.currentFolder + '/' + name;
           if (!this.folders.find(f => f.name === fullName)) {
-            this.folders = [...this.folders, { name: fullName, shared: false, directlyShared: false, excluded: false }];
+            const parentFolder = this.currentFolder !== 'root' ? this.folders.find(f => f.name === this.currentFolder) : null;
+            const inherited = parentFolder ? (parentFolder.shared || parentFolder.directlyShared) && !parentFolder.excluded : false;
+            this.folders = [...this.folders, { name: fullName, shared: inherited, directlyShared: false, excluded: false }];
           }
-          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
+          this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.directlyShared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
           if (this.currentFolder !== 'root') {
             const parts = this.currentFolder.split('/');
             let path = '';
