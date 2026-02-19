@@ -289,8 +289,19 @@ export async function deleteFolder(request: Request, env: Env): Promise<Response
   await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE + folder);
   await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_EXCLUDE + folder);
 
-  // Delete sub-folder KV entries
+  // Clean up folder share link for this folder
+  const metaRaw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder);
+  if (metaRaw) {
+    try {
+      const meta = JSON.parse(metaRaw);
+      await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + meta.token);
+    } catch { /* ignore parse errors */ }
+    await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder);
+  }
+
+  // Delete sub-folder KV entries and their share links
   let cursor: string | undefined;
+  let deletedSubfolders = 0;
   for (;;) {
     const result = await env.VAULT_KV.list({ prefix: 'folder:' + folder + '/', limit: 1000, cursor });
     for (const key of result.keys) {
@@ -298,32 +309,42 @@ export async function deleteFolder(request: Request, env: Env): Promise<Response
       const subName = key.name.replace('folder:', '');
       await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE + subName);
       await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_EXCLUDE + subName);
+      // Clean up sub-folder share link
+      const subMetaRaw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + subName);
+      if (subMetaRaw) {
+        try {
+          const subMeta = JSON.parse(subMetaRaw);
+          await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + subMeta.token);
+        } catch { /* ignore */ }
+        await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + subName);
+      }
+      deletedSubfolders++;
     }
     if (result.list_complete) break;
     cursor = result.cursor;
   }
 
-  // Move contained files to root
+  // Delete all contained files (R2 objects + KV entries + share tokens)
   const allFiles = await getAllFiles(env);
+  let deletedFiles = 0;
+  let totalSizeRemoved = 0;
   for (const file of allFiles) {
     if (file.folder === folder || file.folder.startsWith(folder + '/')) {
-      const oldKey = file.key;
-      const newKey = file.name;
-      const obj = await env.VAULT_BUCKET.get(oldKey);
-      if (obj) {
-        await env.VAULT_BUCKET.put(newKey, obj.body, {
-          httpMetadata: obj.httpMetadata,
-          customMetadata: obj.customMetadata,
-        });
-        await env.VAULT_BUCKET.delete(oldKey);
+      await env.VAULT_BUCKET.delete(file.key);
+      await env.VAULT_KV.delete(KV_PREFIX.FILE + file.id);
+      if (file.shareToken) {
+        await env.VAULT_KV.delete(KV_PREFIX.SHARE + file.shareToken);
       }
-      file.key = newKey;
-      file.folder = 'root';
-      await env.VAULT_KV.put(KV_PREFIX.FILE + file.id, JSON.stringify(file));
+      totalSizeRemoved += file.size;
+      deletedFiles++;
     }
   }
 
-  return json({ deleted: folder });
+  if (deletedFiles > 0) {
+    await updateStatsCounters(env, -totalSizeRemoved, -deletedFiles);
+  }
+
+  return json({ deleted: folder, deletedFiles, deletedSubfolders });
 }
 
 export async function renameFolder(request: Request, env: Env): Promise<Response> {

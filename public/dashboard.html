@@ -453,7 +453,7 @@
     <div class="modal-content">
       <h3 class="text-lg font-semibold mb-2">Delete Folder</h3>
       <p class="text-sm mb-1" style="color:var(--text-secondary)" x-text="'Delete folder: ' + deleteFolderModal.folder"></p>
-      <p class="text-xs mb-4" style="color:var(--text-muted)">Files inside will be moved to root. Sub-folders will also be removed.</p>
+      <p class="text-xs mb-4" style="color:var(--text-muted)">All files and sub-folders inside will be permanently deleted.</p>
       <div class="flex gap-2 justify-end">
         <button @click="deleteFolderModal.show = false" class="btn-secondary text-sm">Cancel</button>
         <button @click="confirmDeleteFolder()" class="btn-danger text-sm">Delete</button>

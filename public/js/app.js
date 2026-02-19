@@ -335,6 +335,7 @@ function cloudvault() {
           body: JSON.stringify({ folder }),
         });
         if (res && res.ok) {
+          const data = await res.json();
           if (this.currentFolder === folder || this.currentFolder.startsWith(folder + '/')) {
             this.currentFolder = 'root';
           }
@@ -342,7 +343,11 @@ function cloudvault() {
           this.folders = this.folders.filter(f => f.name !== folder && !f.name.startsWith(folder + '/'));
           this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.directlyShared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
           this._expandVer++;
-          this.showToast('Folder deleted', 'success');
+          var parts = [];
+          if (data.deletedFiles > 0) parts.push(data.deletedFiles + ' file' + (data.deletedFiles > 1 ? 's' : ''));
+          if (data.deletedSubfolders > 0) parts.push(data.deletedSubfolders + ' subfolder' + (data.deletedSubfolders > 1 ? 's' : ''));
+          var msg = 'Folder deleted' + (parts.length ? ' — removed ' + parts.join(' and ') : '');
+          this.showToast(msg, 'success');
           await this.fetchFiles();
         } else { this.showToast('Delete failed', 'error'); }
       } catch { this.showToast('Delete failed', 'error'); }
