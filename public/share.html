@@ -81,6 +81,29 @@
         </div>
       </div>
 
+      <div id="folder-view" class="hidden">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-4">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-xl flex-shrink-0">📁</div>
+            <div class="flex-1 min-w-0">
+              <h1 class="text-lg font-semibold text-white truncate" id="folder-title"></h1>
+              <div id="folder-breadcrumb" class="flex items-center gap-1 mt-1 text-sm text-gray-500 flex-wrap"></div>
+            </div>
+            <button id="folder-copy-btn" class="px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-all text-sm" title="Copy link">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.03a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L5.25 9.12"/></svg>
+            </button>
+          </div>
+
+          <div id="folder-subfolders" class="space-y-1 mb-3"></div>
+
+          <div id="folder-files" class="space-y-1"></div>
+
+          <div id="folder-empty" class="hidden text-center py-8">
+            <p class="text-gray-500 text-sm">This folder is empty</p>
+          </div>
+        </div>
+      </div>
+
       <div id="error-view" class="hidden max-w-sm mx-auto text-center">
         <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
         <h2 class="text-xl font-semibold text-white mb-2">File Not Available</h2>

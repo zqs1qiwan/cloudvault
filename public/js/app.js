@@ -31,6 +31,7 @@ function cloudvault() {
     typeFilter: 'all',
     previewModal: { show: false, file: null, content: '', loading: false },
     lightbox: { show: false, images: [], currentIndex: 0 },
+    folderShareLinkModal: { show: false, folder: '', token: null, password: '', expiresInDays: 0, hasPassword: false, expiresAt: null },
 
     async init() {
       if (localStorage.getItem('cv-dark') === 'false') {
@@ -602,6 +603,55 @@ function cloudvault() {
       } catch { this.showToast('Failed to revoke link', 'error'); }
     },
 
+    async shareFolderLink(folder) {
+      this.folderCtxMenu.show = false;
+      if (!folder) return;
+      this.folderShareLinkModal = { show: true, folder: folder.name, token: null, password: '', expiresInDays: 0, hasPassword: false, expiresAt: null };
+      try {
+        var res = await this.apiFetch('/api/folder-share-link/' + encodeURIComponent(folder.name));
+        if (res && res.ok) {
+          var data = await res.json();
+          if (data.token) {
+            this.folderShareLinkModal.token = data.token;
+            this.folderShareLinkModal.hasPassword = data.hasPassword;
+            this.folderShareLinkModal.expiresAt = data.expiresAt;
+          }
+        }
+      } catch { /* use defaults */ }
+    },
+
+    async createFolderShareLink() {
+      var { folder, password, expiresInDays } = this.folderShareLinkModal;
+      try {
+        var body = { folder };
+        if (password) body.password = password;
+        if (expiresInDays > 0) body.expiresInDays = expiresInDays;
+        var res = await this.apiFetch('/api/folder-share-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (res && res.ok) {
+          var data = await res.json();
+          this.folderShareLinkModal.token = data.token;
+          this.folderShareLinkModal.hasPassword = data.hasPassword;
+          this.folderShareLinkModal.expiresAt = data.expiresAt;
+          this.showToast('Folder share link created', 'success');
+          this.copyShareLink(data.token);
+        } else { this.showToast('Failed to create folder share link', 'error'); }
+      } catch { this.showToast('Failed to create folder share link', 'error'); }
+    },
+
+    async revokeFolderShareLink(folder) {
+      try {
+        var res = await this.apiFetch('/api/folder-share-link/' + encodeURIComponent(folder), { method: 'DELETE' });
+        if (res && res.ok) {
+          this.folderShareLinkModal.show = false;
+          this.showToast('Folder share link revoked', 'success');
+        } else { this.showToast('Failed to revoke folder share link', 'error'); }
+      } catch { this.showToast('Failed to revoke folder share link', 'error'); }
+    },
+
     copyShareLink(token) {
       const url = window.location.origin + '/s/' + token;
       navigator.clipboard.writeText(url).then(() => this.showToast('Link copied to clipboard', 'info'));
@@ -809,6 +859,7 @@ function cloudvault() {
         this.lightbox.show = false;
         this.renameFolderModal.show = false;
         this.deleteFolderModal.show = false;
+        this.folderShareLinkModal.show = false;
       }
     },
 

@@ -60,7 +60,7 @@
       <div class="sidebar-item tree-item" :class="{'active': currentFolder === 'root'}" data-folder-path="root" style="padding-left:12px">
         <svg class="w-3 h-3 tree-chevron" :class="{'expanded': expandedFolders['__root__']}" data-toggle-folder="__root__" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>
-        All Files
+        Home
       </div>
       <div x-show="expandedFolders['__root__']" x-html="[_expandVer, currentFolder, _folderShareHash, renderFolderTree(folderTree, 1)].pop()"></div>
 
@@ -167,15 +167,17 @@
               </div>
               <div class="w-full aspect-square rounded-lg flex items-center justify-center mb-2 overflow-hidden" style="background:var(--bg-tertiary)">
                 <template x-if="file.type.startsWith('image/')">
-                  <img :src="'/api/files/' + file.id + '/thumbnail'" class="w-full h-full object-cover" loading="lazy" @error="$el.style.display='none';$el.nextElementSibling.style.display='flex'">
+                  <img :src="'/api/files/' + file.id + '/thumbnail'" class="w-full h-full object-cover" loading="lazy" @error="$el.style.display='none'">
                 </template>
-                <span class="text-3xl" x-text="getFileIcon(file.type, file.name)"></span>
+                <template x-if="!file.type.startsWith('image/')">
+                  <span class="text-3xl" x-text="getFileIcon(file.type, file.name)"></span>
+                </template>
               </div>
               <p class="text-xs font-medium truncate" x-text="file.name" :title="file.name"></p>
-              <p x-show="searchQuery && file.folder !== 'root'" class="text-xs truncate mt-0.5" style="color:var(--text-muted)" x-text="file.folder" :title="file.folder"></p>
+              <p x-show="searchQuery && file.folder !== 'root'" class="text-xs truncate mt-0.5 cursor-pointer hover:underline" style="color:var(--text-muted)" x-text="file.folder" :title="file.folder" @click.stop="navigateFolder(file.folder)"></p>
               <div class="flex items-center justify-between mt-1">
                 <span class="text-xs" style="color:var(--text-muted)" x-text="formatBytes(file.size)"></span>
-                <span x-show="file.shareToken" class="badge badge-link">🔗 link</span>
+                <span x-show="file.shareToken" class="badge badge-link cursor-pointer" @click.stop="shareFile(file)">🔗 link</span>
               </div>
             </div>
           </template>
@@ -206,7 +208,7 @@
                       <span x-text="getFileIcon(file.type, file.name)"></span>
                       <div class="min-w-0">
                         <span class="truncate block" x-text="file.name"></span>
-                        <span x-show="searchQuery && file.folder !== 'root'" class="text-xs block truncate" style="color:var(--text-muted)" x-text="file.folder"></span>
+                        <span x-show="searchQuery && file.folder !== 'root'" class="text-xs block truncate cursor-pointer hover:underline" style="color:var(--text-muted)" x-text="file.folder" @click.stop="navigateFolder(file.folder)"></span>
                       </div>
                     </div>
                   </td>
@@ -214,7 +216,7 @@
                   <td class="py-2 px-3 hidden sm:table-cell" style="color:var(--text-muted)" x-text="formatBytes(file.size)"></td>
                   <td class="py-2 px-3 hidden md:table-cell" style="color:var(--text-muted)" x-text="formatDate(file.uploadedAt)"></td>
                   <td class="py-2 px-3 hidden lg:table-cell">
-                    <span x-show="file.shareToken" class="badge badge-link">🔗 link</span>
+                    <span x-show="file.shareToken" class="badge badge-link cursor-pointer" @click.stop="shareFile(file)">🔗 link</span>
                     <span x-show="file.downloads > 0" class="text-xs ml-1" style="color:var(--text-muted)" x-text="file.downloads + ' dl'"></span>
                   </td>
                   <td class="py-2 px-3">
@@ -236,7 +238,7 @@
     <div class="text-center">
       <svg class="w-16 h-16 mx-auto mb-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
       <p class="text-xl font-semibold text-accent-400">Drop files to upload</p>
-      <p class="text-sm mt-1" style="color:var(--text-muted)" x-text="'to ' + (currentFolder === 'root' ? 'All Files' : currentFolder)"></p>
+      <p class="text-sm mt-1" style="color:var(--text-muted)" x-text="'to ' + (currentFolder === 'root' ? 'Home' : currentFolder)"></p>
     </div>
   </div>
 
@@ -388,6 +390,10 @@
         Share (Guest)
       </button>
     </template>
+    <button @click="shareFolderLink(folderCtxMenu.folder)">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.03a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L5.25 9.12"/></svg>
+      Share Link
+    </button>
     <button @click="showRenameFolderModal(folderCtxMenu.folder)">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"/></svg>
       Rename Folder
@@ -445,6 +451,47 @@
         <button @click="moveModal.show = false" class="btn-secondary text-sm">Cancel</button>
         <button @click="confirmMove()" class="btn-primary text-sm">Move</button>
       </div>
+    </div>
+  </div>
+
+  <!-- FOLDER SHARE LINK MODAL -->
+  <div x-show="folderShareLinkModal.show" x-transition class="modal-backdrop" @click.self="folderShareLinkModal.show = false">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-4">Share Folder Link</h3>
+      <p class="text-sm mb-4 truncate" style="color:var(--text-secondary)" x-text="folderShareLinkModal.folder"></p>
+
+      <template x-if="folderShareLinkModal.token">
+        <div>
+          <div class="flex gap-2 mb-4">
+            <input type="text" readonly :value="window.location.origin + '/s/' + folderShareLinkModal.token" class="flex-1 text-sm" @click="$el.select()">
+            <button @click="copyShareLink(folderShareLinkModal.token)" class="btn-primary text-xs">Copy</button>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="text-sm" style="color:var(--text-muted)">
+              <span x-show="folderShareLinkModal.hasPassword">🔒 Password protected</span>
+              <span x-show="folderShareLinkModal.expiresAt" class="ml-2" x-text="folderShareLinkModal.expiresAt ? 'Expires: ' + new Date(folderShareLinkModal.expiresAt).toLocaleDateString() : ''"></span>
+            </div>
+            <button @click="revokeFolderShareLink(folderShareLinkModal.folder)" class="btn-danger text-xs">Revoke Link</button>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="!folderShareLinkModal.token">
+        <div>
+          <div class="mb-3">
+            <label class="block text-xs font-medium mb-1" style="color:var(--text-muted)">Password (optional)</label>
+            <input type="password" x-model="folderShareLinkModal.password" placeholder="Leave empty for no password" class="w-full text-sm">
+          </div>
+          <div class="mb-4">
+            <label class="block text-xs font-medium mb-1" style="color:var(--text-muted)">Expires in (days)</label>
+            <input type="number" x-model.number="folderShareLinkModal.expiresInDays" min="0" placeholder="0 = never" class="w-full text-sm">
+          </div>
+          <div class="flex gap-2 justify-end">
+            <button @click="folderShareLinkModal.show = false" class="btn-secondary text-sm">Cancel</button>
+            <button @click="createFolderShareLink()" class="btn-primary text-sm">Create Link</button>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 

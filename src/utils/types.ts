@@ -89,6 +89,7 @@ export const KV_PREFIX = {
   SHARE: 'share:',
   FOLDER_SHARE: 'foldershare:',
   FOLDER_SHARE_EXCLUDE: 'foldershare-exclude:',
+  FOLDER_SHARE_LINK: 'foldersharelink:',
   SESSION: 'session:',
   STATS: 'stats:',
   SETTINGS: 'settings:',

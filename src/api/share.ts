@@ -216,6 +216,135 @@ export async function toggleFolderExclude(request: Request, env: Env): Promise<R
   return json({ excluded: true, folder });
 }
 
+// ─── Folder Share Link CRUD ────────────────────────────────────────────
+
+export async function createFolderShareLink(request: Request, env: Env): Promise<Response> {
+  const body = await request.json<{
+    folder: string;
+    password?: string;
+    expiresInDays?: number;
+  }>();
+
+  if (!body.folder?.trim()) return error('Folder name required', 400);
+  const folder = body.folder.trim();
+
+  const existingRaw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder);
+  if (existingRaw) {
+    const existing = JSON.parse(existingRaw);
+    if (existing.token) {
+      await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + existing.token);
+    }
+  }
+
+  const token = crypto.randomUUID();
+  let passwordHash: string | null = null;
+  if (body.password) {
+    passwordHash = await hashSharePassword(body.password);
+  }
+
+  let expiresAt: string | null = null;
+  if (body.expiresInDays && body.expiresInDays > 0) {
+    expiresAt = new Date(Date.now() + body.expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+  }
+
+  const linkData = { folder, passwordHash, expiresAt, createdAt: new Date().toISOString() };
+
+  await Promise.all([
+    env.VAULT_KV.put(KV_PREFIX.FOLDER_SHARE_LINK + token, JSON.stringify(linkData)),
+    env.VAULT_KV.put(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder, JSON.stringify({ token, passwordHash, expiresAt })),
+  ]);
+
+  return json({
+    token,
+    url: '/s/' + token,
+    expiresAt,
+    hasPassword: !!passwordHash,
+  });
+}
+
+export async function revokeFolderShareLink(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const folder = decodeURIComponent(url.pathname.split('/').slice(3).join('/'));
+  if (!folder) return error('Folder path required', 400);
+
+  const metaRaw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder);
+  if (!metaRaw) return error('No share link found for this folder', 404);
+
+  const meta = JSON.parse(metaRaw);
+  await Promise.all([
+    env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + meta.token),
+    env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder),
+  ]);
+
+  return json({ message: 'Folder share link revoked' });
+}
+
+export async function getFolderShareLinkInfo(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const folder = decodeURIComponent(url.pathname.split('/').slice(3).join('/'));
+  if (!folder) return error('Folder path required', 400);
+
+  const metaRaw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder);
+  if (!metaRaw) return json({ token: null });
+
+  const meta = JSON.parse(metaRaw);
+  return json({
+    folder,
+    token: meta.token,
+    hasPassword: !!meta.passwordHash,
+    expiresAt: meta.expiresAt,
+  });
+}
+
+export async function resolveFolderShareToken(token: string, env: Env): Promise<{ folder: string; passwordHash: string | null; expiresAt: string | null } | null> {
+  const raw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + token);
+  if (!raw) return null;
+  const data = JSON.parse(raw);
+  return { folder: data.folder, passwordHash: data.passwordHash || null, expiresAt: data.expiresAt || null };
+}
+
+export async function browseFolderShareLink(folder: string, subpath: string, env: Env): Promise<{ files: Array<{ id: string; name: string; size: number; type: string; folder: string; uploadedAt: string }>; subfolders: string[] }> {
+  const browsePath = subpath ? folder + '/' + subpath : folder;
+  const allFiles = await getAllFiles(env);
+  const prefix = browsePath + '/';
+
+  const folderFiles = allFiles
+    .filter(f => f.folder === browsePath)
+    .map(f => ({
+      id: f.id, name: f.name, size: f.size, type: f.type,
+      folder: f.folder, uploadedAt: f.uploadedAt,
+    }))
+    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+
+  const subfolderSet = new Set<string>();
+  for (const f of allFiles) {
+    if (f.folder.startsWith(prefix)) {
+      const rest = f.folder.slice(prefix.length);
+      const slashIdx = rest.indexOf('/');
+      const childName = slashIdx >= 0 ? rest.substring(0, slashIdx) : rest;
+      if (childName) subfolderSet.add(prefix + childName);
+    }
+  }
+
+  let cursor: string | undefined;
+  for (;;) {
+    const result = await env.VAULT_KV.list({ prefix: 'folder:' + prefix, limit: 1000, cursor });
+    for (const key of result.keys) {
+      const name = key.name.slice('folder:'.length);
+      if (name.startsWith(prefix)) {
+        const rest = name.slice(prefix.length);
+        const slashIdx = rest.indexOf('/');
+        const childName = slashIdx >= 0 ? rest.substring(0, slashIdx) : rest;
+        if (childName) subfolderSet.add(prefix + childName);
+      }
+    }
+    if (result.list_complete) break;
+    cursor = result.cursor;
+  }
+
+  return { files: folderFiles, subfolders: Array.from(subfolderSet).sort() };
+}
+
 // ─── Public Shared Listing (with folder inheritance) ──────────────────
 
 export async function listPublicShared(request: Request, env: Env): Promise<Response> {
@@ -244,16 +373,10 @@ export async function listPublicShared(request: Request, env: Env): Promise<Resp
     }
   }
 
-  const topLevelRoots = new Set<string>();
-  for (const sf of visibleFolders) {
-    const root = sf.split('/')[0];
-    if (root) topLevelRoots.add(root);
-  }
-
   files.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
   return json({
     files,
-    sharedFolders: Array.from(topLevelRoots).sort(),
+    sharedFolders: visibleFolders.sort(),
     settings: { showLoginButton: settings.showLoginButton },
   });
 }
@@ -332,6 +455,13 @@ export async function browsePublicFolder(request: Request, env: Env): Promise<Re
       }
       if (result.list_complete) break;
       cursor = result.cursor;
+    }
+  }
+
+  for (const ex of excludedFolders) {
+    subfolderSet.delete(ex);
+    for (const sf of subfolderSet) {
+      if (sf.startsWith(ex + '/')) subfolderSet.delete(sf);
     }
   }
 

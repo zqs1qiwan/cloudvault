@@ -108,6 +108,12 @@ async function handleShareRoutes(
   if (segments.length === 3 && segments[2] === 'preview' && method === 'GET') {
     return download.handlePreview(request, env);
   }
+  if (segments.length === 3 && segments[2] === 'folder-download' && method === 'GET') {
+    return download.handleFolderShareDownload(request, env);
+  }
+  if (segments.length === 3 && segments[2] === 'folder-preview' && method === 'GET') {
+    return download.handleFolderSharePreview(request, env);
+  }
   if (segments.length === 3 && segments[2] === 'verify' && method === 'POST') {
     return download.handleSharePassword(request, env);
   }
@@ -194,6 +200,16 @@ async function handleApiRoutes(
   if (shareMatch) {
     if (method === 'DELETE') return share.revokeShare(request, env);
     if (method === 'GET') return share.getShareInfo(request, env);
+  }
+
+  if (path === '/api/folder-share-link' && method === 'POST') {
+    return share.createFolderShareLink(request, env);
+  }
+  if (path.startsWith('/api/folder-share-link/') && method === 'DELETE') {
+    return share.revokeFolderShareLink(request, env);
+  }
+  if (path.startsWith('/api/folder-share-link/') && method === 'GET') {
+    return share.getFolderShareLinkInfo(request, env);
   }
 
   if (path === '/api/stats' && method === 'GET') {
