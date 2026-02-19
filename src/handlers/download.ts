@@ -106,6 +106,7 @@ export async function handleFolderShareDownload(request: Request, env: Env): Pro
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
+  headers.set('Cache-Control', 'public, max-age=14400, s-maxage=86400');
   headers.set('Content-Disposition', 'attachment; filename="' + encodeURIComponent(meta.name) + '"');
   headers.set('Content-Length', String(object.size));
 
@@ -141,7 +142,7 @@ export async function handleFolderSharePreview(request: Request, env: Env): Prom
   headers.set('etag', object.httpEtag);
   headers.set('Content-Type', meta.type || 'application/octet-stream');
   headers.set('Content-Disposition', 'inline');
-  headers.set('Cache-Control', 'public, max-age=3600');
+  headers.set('Cache-Control', 'public, max-age=14400, s-maxage=86400');
 
   return new Response(object.body, { headers });
 }
@@ -183,6 +184,7 @@ export async function handleShareDownload(request: Request, env: Env): Promise<R
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
+  headers.set('Cache-Control', 'public, max-age=14400, s-maxage=86400');
   headers.set('Content-Disposition', 'attachment; filename="' + result.meta.name + '"');
   headers.set('Content-Length', String(object.size));
 
@@ -229,7 +231,7 @@ export async function handlePreview(request: Request, env: Env): Promise<Respons
   headers.set('etag', object.httpEtag);
   headers.set('Content-Type', result.meta.type || 'application/octet-stream');
   headers.set('Content-Disposition', 'inline');
-  headers.set('Cache-Control', 'public, max-age=3600');
+  headers.set('Cache-Control', 'public, max-age=14400, s-maxage=86400');
   headers.set('Accept-Ranges', 'bytes');
 
   return new Response(object.body, { headers });

@@ -500,6 +500,7 @@ export async function publicDownload(request: Request, env: Env): Promise<Respon
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
+  headers.set('Cache-Control', 'public, max-age=14400, s-maxage=86400');
   headers.set('Content-Disposition', 'attachment; filename="' + encodeURIComponent(meta.name) + '"');
   headers.set('Content-Length', String(object.size));
 

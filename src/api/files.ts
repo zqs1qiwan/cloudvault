@@ -208,6 +208,7 @@ export async function download(request: Request, env: Env): Promise<Response> {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
+  headers.set('Cache-Control', 'private, max-age=14400');
   headers.set('Content-Disposition', 'attachment; filename="' + meta.name + '"');
 
   return new Response(object.body, { headers });
@@ -514,7 +515,7 @@ export async function thumbnail(request: Request, env: Env): Promise<Response> {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
-  headers.set('Cache-Control', 'public, max-age=86400');
+  headers.set('Cache-Control', 'public, max-age=14400, s-maxage=86400');
 
   return new Response(object.body, { headers });
 }
