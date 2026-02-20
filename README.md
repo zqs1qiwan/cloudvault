@@ -11,7 +11,7 @@ A personal cloud storage platform built on **Cloudflare Workers + R2**. Zero ser
 - **File Management** — Upload, download, rename, move, delete, and organize files into folders
 - **Folder System** — Create nested folders, drag-and-drop upload with folder structure
 - **File Sharing** — Generate share links with optional password protection and expiration
-- **Guest Page** — Public-facing page showing shared folders and files (toggle on/off)
+- **Guest File Browser** — Public-facing file browser with search, sortable columns (name/size/date), copy-link and download buttons, file type icons, dark/light mode, and responsive layout
 - **Folder Sharing** — Share entire folders as guest-accessible, with inheritance to sub-folders
 - **Share Exclusion** — Exclude specific sub-folders from inherited guest sharing
 - **File Preview** — In-browser preview for images, videos, audio, PDFs, code, and Markdown
@@ -174,7 +174,7 @@ Cached endpoints:
 - **文件管理** — 上传、下载、重命名、移动、删除，文件夹分类整理
 - **文件夹系统** — 创建嵌套文件夹，拖拽上传保留文件夹结构
 - **文件分享** — 生成分享链接，支持密码保护和过期时间设置
-- **访客页面** — 公开展示已分享的文件夹和文件（可开关）
+- **访客文件浏览器** — 公开文件浏览器，支持搜索、可排序列（名称/大小/日期）、复制链接和下载按钮、文件类型图标、深色/浅色模式切换、响应式布局
 - **文件夹分享** — 将整个文件夹设为访客可访问，子文件夹自动继承
 - **分享排除** — 从继承的访客分享中排除特定子文件夹
 - **文件预览** — 浏览器内预览图片、视频、音频、PDF、代码和 Markdown

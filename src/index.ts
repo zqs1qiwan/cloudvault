@@ -71,11 +71,11 @@ export default {
       }
 
       // Serve static assets (css, js, images, fonts) without auth — needed by all pages
-      if (method === 'GET' && isStaticAsset(path)) {
+      if ((method === 'GET' || method === 'HEAD') && isStaticAsset(path)) {
         return env.ASSETS.fetch(request);
       }
 
-      if (method === 'GET') {
+      if (method === 'GET' || method === 'HEAD') {
         const cleanResponse = await serveWithEdgeCache(request, ctx, () => download.handleCleanDownload(request, env));
         if (cleanResponse) return cleanResponse;
       }
