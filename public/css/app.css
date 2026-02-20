@@ -197,6 +197,17 @@ input:focus { border-color: var(--accent); }
   .lightbox-next { right: 8px; }
 }
 
+/* ─── Folder Tag (breadcrumb) ───────────────────────────────────────── */
+.folder-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 6px;
+  font-size: 13px; font-weight: 500; white-space: nowrap;
+  background: var(--bg-tertiary); color: var(--text-secondary);
+  border: none; cursor: pointer; transition: all 0.1s;
+}
+.folder-tag:hover { background: var(--bg-hover); color: var(--text-primary); }
+.folder-tag.active { background: var(--accent-soft); color: var(--accent); }
+
 /* ─── Type Filter Dropdown ──────────────────────────────────────────── */
 .type-dropdown {
   position: absolute; top: 100%; right: 0; margin-top: 4px; z-index: 100;

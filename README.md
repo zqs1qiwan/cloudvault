@@ -24,6 +24,7 @@ A personal cloud storage platform built on **Cloudflare Workers + R2**. Zero ser
 - **Custom Branding** — Customize site name and logo icon via Settings
 - **CDN Edge Caching** — Public downloads cached at Cloudflare's 300+ edge locations via Cache API, eliminating redundant R2 reads
 - **Clean Download URLs** — SEO-friendly paths like `/TVBOX/app.apk` instead of opaque API endpoints
+- **WebDAV Support** — Mount CloudVault as a network drive via WebDAV (like alist). Sync system backups, upload/download with any WebDAV client (rclone, Finder, Windows Explorer, Cyberduck)
 - **Single Password Auth** — Simple admin password via Cloudflare secret
 
 📖 **[Wiki Documentation / 文档](https://github.com/zqs1qiwan/cloudvault/wiki)** — Installation, configuration, usage guide, and FAQ in English and Chinese.
@@ -36,6 +37,7 @@ A personal cloud storage platform built on **Cloudflare Workers + R2**. Zero ser
 | Storage | [Cloudflare R2](https://developers.cloudflare.com/r2/) (S3-compatible object storage) |
 | Metadata | [Cloudflare KV](https://developers.cloudflare.com/kv/) (key-value store) |
 | Frontend | Alpine.js + Tailwind CSS (CDN) |
+| Protocol | WebDAV (Class 1 — RFC 4918) |
 | Language | TypeScript (backend), JavaScript (frontend) |
 
 ## Quick Start
@@ -120,10 +122,12 @@ cloudvault/
 │   │   ├── settings.ts       # Site settings (guest page toggle)
 │   │   └── stats.ts          # Storage statistics
 │   ├── handlers/
-│   │   └── download.ts       # Share link page & download handler
+│   │   ├── download.ts       # Share link page & download handler
+│   │   └── webdav.ts         # WebDAV protocol handler (9 methods)
 │   └── utils/
 │       ├── types.ts          # TypeScript types & KV prefixes
-│       └── response.ts       # JSON/error/redirect helpers
+│       ├── response.ts       # JSON/error/redirect helpers
+│       └── webdav-xml.ts     # WebDAV XML response builders
 ├── public/
 │   ├── dashboard.html        # Admin dashboard
 │   ├── guest.html            # Public guest page
@@ -159,6 +163,77 @@ Cached endpoints:
 - Clean URLs: `https://your-domain.com/FOLDER/filename.ext`
 - Legacy API: `https://your-domain.com/api/public/download/{fileId}`
 
+## WebDAV
+
+CloudVault exposes a WebDAV endpoint at `/dav/` for mounting your storage as a network drive. This works like [alist](https://github.com/alist-org/alist) — you can sync system backups, firmware images, and any large files using standard WebDAV clients.
+
+**Endpoint**: `https://your-domain.com/dav/`
+
+**Authentication**: HTTP Basic Auth (username can be anything, password = your admin password)
+
+### Client Setup
+
+**rclone** (recommended for backup sync):
+
+```bash
+rclone config
+# Type: webdav
+# URL: https://your-domain.com/dav/
+# Vendor: other
+# User: admin
+# Password: your-admin-password
+
+# Sync a local folder
+rclone sync /path/to/backups cloudvault:/backups/
+
+# List files
+rclone ls cloudvault:/
+```
+
+**macOS Finder**: Go → Connect to Server → `https://your-domain.com/dav/`
+
+**Windows Explorer**: Map Network Drive → `https://your-domain.com/dav/`
+
+**Cyberduck / Mountain Duck**: New Connection → WebDAV (HTTPS) → Server: `your-domain.com` → Path: `/dav/`
+
+### Supported Methods
+
+| Method | Description |
+|--------|-------------|
+| `PROPFIND` | List files and folders (Depth 0/1) |
+| `GET` | Download files |
+| `HEAD` | File/folder metadata |
+| `PUT` | Upload / overwrite files |
+| `DELETE` | Delete files or folders (recursive) |
+| `MKCOL` | Create folders |
+| `MOVE` | Move / rename files |
+| `COPY` | Copy files |
+| `OPTIONS` | Capability discovery (`DAV: 1`) |
+
+### curl Examples
+
+```bash
+# List root directory
+curl -u admin:password -X PROPFIND -H "Depth: 1" https://your-domain.com/dav/
+
+# Create a folder
+curl -u admin:password -X MKCOL https://your-domain.com/dav/backups/
+
+# Upload a file
+curl -u admin:password -X PUT -T backup.tar.gz https://your-domain.com/dav/backups/backup.tar.gz
+
+# Download a file
+curl -u admin:password https://your-domain.com/dav/backups/backup.tar.gz -o backup.tar.gz
+
+# Delete a file
+curl -u admin:password -X DELETE https://your-domain.com/dav/backups/backup.tar.gz
+```
+
+### Limits
+
+- **Max upload size**: 100 MB per request (Cloudflare Workers body limit on paid plan)
+- **Storage**: R2 has no storage limit; files uploaded via WebDAV appear in the dashboard and vice versa
+
 ## License
 
 [MIT](LICENSE)
@@ -187,6 +262,7 @@ Cached endpoints:
 - **自定义品牌** — 在设置中自定义站点名称和 Logo 图标
 - **CDN 边缘缓存** — 公开下载通过 Cache API 缓存在 Cloudflare 全球 300+ 边缘节点，减少 R2 重复读取
 - **简洁下载链接** — SEO 友好的路径如 `/TVBOX/app.apk`，替代不透明的 API 端点
+- **WebDAV 支持** — 通过 WebDAV 将 CloudVault 挂载为网络硬盘（类似 alist）。同步系统备份、使用任意 WebDAV 客户端（rclone、Finder、Windows 资源管理器、Cyberduck）上传下载
 - **单密码认证** — 通过 Cloudflare Secret 配置管理员密码
 
 📖 **[Wiki 文档 / Documentation](https://github.com/zqs1qiwan/cloudvault/wiki)** — 安装指南、配置说明、使用指南和常见问题，支持中英双语。
@@ -276,6 +352,58 @@ SESSION_SECRET=your-local-secret
 缓存端点：
 - 简洁链接：`https://your-domain.com/FOLDER/filename.ext`
 - 旧版 API：`https://your-domain.com/api/public/download/{fileId}`
+
+## WebDAV
+
+CloudVault 在 `/dav/` 路径提供 WebDAV 端点，可将存储空间挂载为网络硬盘。功能类似 [alist](https://github.com/alist-org/alist) —— 你可以使用标准 WebDAV 客户端同步系统备份、固件镜像及各类大文件。
+
+**端点地址**：`https://your-domain.com/dav/`
+
+**认证方式**：HTTP Basic Auth（用户名任意，密码 = 管理员密码）
+
+### 客户端配置
+
+**rclone**（推荐用于备份同步）：
+
+```bash
+rclone config
+# 类型: webdav
+# URL: https://your-domain.com/dav/
+# Vendor: other
+# 用户名: admin
+# 密码: 你的管理员密码
+
+# 同步本地文件夹
+rclone sync /path/to/backups cloudvault:/backups/
+
+# 列出文件
+rclone ls cloudvault:/
+```
+
+**macOS Finder**：前往 → 连接服务器 → `https://your-domain.com/dav/`
+
+**Windows 资源管理器**：映射网络驱动器 → `https://your-domain.com/dav/`
+
+**Cyberduck / Mountain Duck**：新建连接 → WebDAV (HTTPS) → 服务器：`your-domain.com` → 路径：`/dav/`
+
+### 支持的方法
+
+| 方法 | 说明 |
+|------|------|
+| `PROPFIND` | 列出文件和文件夹（Depth 0/1） |
+| `GET` | 下载文件 |
+| `HEAD` | 获取文件/文件夹元数据 |
+| `PUT` | 上传/覆盖文件 |
+| `DELETE` | 删除文件或文件夹（递归删除） |
+| `MKCOL` | 创建文件夹 |
+| `MOVE` | 移动/重命名文件 |
+| `COPY` | 复制文件 |
+| `OPTIONS` | 能力发现（`DAV: 1`） |
+
+### 限制
+
+- **单次上传上限**：100 MB（Cloudflare Workers 付费版请求体限制）
+- **存储空间**：R2 无容量限制；通过 WebDAV 上传的文件会同步显示在管理后台，反之亦然
 
 ## 许可证
 

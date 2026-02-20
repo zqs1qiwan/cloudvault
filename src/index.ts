@@ -7,6 +7,7 @@ import * as share from './api/share';
 import * as stats from './api/stats';
 import * as settings from './api/settings';
 import * as download from './handlers/download';
+import { handleWebDav } from './handlers/webdav';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -14,11 +15,50 @@ export default {
     const path = url.pathname;
     const method = request.method;
 
-    if (method === 'OPTIONS') {
+    if (method === 'OPTIONS' && !path.startsWith('/dav')) {
       return corsPreflightResponse();
     }
 
     try {
+      // ── WebDAV endpoint (/dav or /dav/...) ──
+      if (path === '/dav' || path.startsWith('/dav/')) {
+        // OPTIONS may be sent without auth by some clients
+        if (method !== 'OPTIONS') {
+          const authHeader = request.headers.get('Authorization');
+          if (!authHeader || !authHeader.startsWith('Basic ')) {
+            return new Response('Unauthorized', {
+              status: 401,
+              headers: { 'WWW-Authenticate': 'Basic realm="CloudVault WebDAV"' },
+            });
+          }
+          const decoded = atob(authHeader.slice(6));
+          const colonIdx = decoded.indexOf(':');
+          const inputPassword = colonIdx >= 0 ? decoded.slice(colonIdx + 1) : decoded;
+
+          const encoder = new TextEncoder();
+          const inputHash = Array.from(
+            new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(inputPassword))),
+          )
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+          const storedHash = Array.from(
+            new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(env.ADMIN_PASSWORD))),
+          )
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+
+          const a = encoder.encode(inputHash);
+          const b = encoder.encode(storedHash);
+          if (a.byteLength !== b.byteLength || !crypto.subtle.timingSafeEqual(a, b)) {
+            return new Response('Unauthorized', {
+              status: 401,
+              headers: { 'WWW-Authenticate': 'Basic realm="CloudVault WebDAV"' },
+            });
+          }
+        }
+        return handleWebDav(request, env);
+      }
+
       if (path === '/auth/login' && method === 'POST') {
         return await handleLogin(request, env);
       }
