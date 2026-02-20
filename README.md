@@ -22,6 +22,8 @@ A personal cloud storage platform built on **Cloudflare Workers + R2**. Zero ser
 - **Dark/Light Mode** — Toggle between dark and light themes
 - **Responsive** — Mobile-friendly sidebar and layout
 - **Custom Branding** — Customize site name and logo icon via Settings
+- **CDN Edge Caching** — Public downloads cached at Cloudflare's 300+ edge locations via Cache API, eliminating redundant R2 reads
+- **Clean Download URLs** — SEO-friendly paths like `/TVBOX/app.apk` instead of opaque API endpoints
 - **Single Password Auth** — Simple admin password via Cloudflare secret
 
 📖 **[Wiki Documentation / 文档](https://github.com/zqs1qiwan/cloudvault/wiki)** — Installation, configuration, usage guide, and FAQ in English and Chinese.
@@ -140,6 +142,23 @@ cloudvault/
 └── LICENSE
 ```
 
+## CDN Edge Caching
+
+Public file downloads are cached at Cloudflare's edge using the [Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/). Worker-generated responses are **not** automatically cached by Cloudflare's CDN — CloudVault uses explicit `caches.default.match()` / `cache.put()` to store and serve responses at the edge.
+
+| Request | Behavior |
+|---------|----------|
+| 1st download | `X-Cache: MISS` — fetches from R2, stores at edge |
+| 2nd+ download | `X-Cache: HIT` + `cf-cache-status: HIT` — served from edge, zero R2 cost |
+
+- **Browser cache**: 4 hours (`max-age=14400`)
+- **Edge cache**: 24 hours (`s-maxage=86400`)
+- **Custom domain required**: `*.workers.dev` does not support CDN caching
+
+Cached endpoints:
+- Clean URLs: `https://your-domain.com/FOLDER/filename.ext`
+- Legacy API: `https://your-domain.com/api/public/download/{fileId}`
+
 ## License
 
 [MIT](LICENSE)
@@ -166,6 +185,8 @@ cloudvault/
 - **深色/浅色模式** — 主题切换
 - **响应式设计** — 移动端适配
 - **自定义品牌** — 在设置中自定义站点名称和 Logo 图标
+- **CDN 边缘缓存** — 公开下载通过 Cache API 缓存在 Cloudflare 全球 300+ 边缘节点，减少 R2 重复读取
+- **简洁下载链接** — SEO 友好的路径如 `/TVBOX/app.apk`，替代不透明的 API 端点
 - **单密码认证** — 通过 Cloudflare Secret 配置管理员密码
 
 📖 **[Wiki 文档 / Documentation](https://github.com/zqs1qiwan/cloudvault/wiki)** — 安装指南、配置说明、使用指南和常见问题，支持中英双语。
@@ -238,6 +259,23 @@ npm run dev
 ADMIN_PASSWORD=your-local-password
 SESSION_SECRET=your-local-secret
 ```
+
+## CDN 边缘缓存
+
+公开文件下载通过 [Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/) 缓存在 Cloudflare 边缘节点。Worker 生成的响应**不会**被 Cloudflare CDN 自动缓存 — CloudVault 使用显式的 `caches.default.match()` / `cache.put()` 在边缘存储和提供响应。
+
+| 请求 | 行为 |
+|------|------|
+| 首次下载 | `X-Cache: MISS` — 从 R2 获取，存储到边缘 |
+| 后续下载 | `X-Cache: HIT` + `cf-cache-status: HIT` — 从边缘提供，零 R2 成本 |
+
+- **浏览器缓存**：4 小时（`max-age=14400`）
+- **边缘缓存**：24 小时（`s-maxage=86400`）
+- **需要自定义域名**：`*.workers.dev` 不支持 CDN 缓存
+
+缓存端点：
+- 简洁链接：`https://your-domain.com/FOLDER/filename.ext`
+- 旧版 API：`https://your-domain.com/api/public/download/{fileId}`
 
 ## 许可证
 
