@@ -138,9 +138,7 @@ async function handlePropfind(request: Request, env: Env): Promise<Response> {
   const folders = await getAllFolders(env);
   const allFiles = await getAllFiles(env);
 
-  const isFolder = folders.has(davPath) || allFiles.some(f => f.folder === davPath || f.folder.startsWith(davPath + '/'));
-
-  if (!isFolder) {
+  if (!isDirPath(davPath, folders, allFiles)) {
     return new Response('Not Found', { status: 404 });
   }
 
@@ -154,19 +152,10 @@ async function handlePropfind(request: Request, env: Env): Promise<Response> {
       items.push(propstatEntry(fileToHref(f), fileToProps(f), false));
     }
 
-    const childFolders = new Set<string>();
-    for (const [name] of folders) {
-      if (name.startsWith(davPath + '/') && !name.slice(davPath.length + 1).includes('/')) {
-        childFolders.add(name);
-      }
-    }
-    for (const f of allFiles) {
-      if (f.folder.startsWith(davPath + '/') && !f.folder.slice(davPath.length + 1).includes('/')) {
-        childFolders.add(f.folder);
-      }
-    }
-    for (const cf of childFolders) {
-      items.push(propstatEntry(folderToHref(cf), folderToProps(cf, folders.get(cf)), true));
+    const childNames = collectChildFolders(davPath, folders, allFiles);
+    for (const cn of childNames) {
+      const fullPath = davPath + '/' + cn;
+      items.push(propstatEntry(folderToHref(fullPath), folderToProps(fullPath, folders.get(fullPath)), true));
     }
   }
 
@@ -216,45 +205,61 @@ function formatSize(bytes: number): string {
   return (bytes / 1073741824).toFixed(2) + ' GB';
 }
 
-async function serveDirectoryListing(env: Env, davPath: string, folders: Map<string, string>): Promise<Response> {
-  const allFiles = await getAllFiles(env);
-  const displayPath = davPath || '/';
-  const prefix = davPath ? davPath + '/' : '';
-  const parentHref = davPath
-    ? '/dav/' + encodeURIComponent(davPath.substring(0, davPath.lastIndexOf('/')).replace(/^\//, '')) + '/'
-    : null;
+function encodeDavHref(davPath: string, trailingSlash = false): string {
+  if (!davPath) return '/dav/';
+  const encoded = davPath.split('/').map(s => encodeURIComponent(s)).join('/');
+  return '/dav/' + encoded + (trailingSlash ? '/' : '');
+}
 
-  const childFolders: string[] = [];
+function isDirPath(davPath: string, folders: Map<string, string>, allFiles: FileMeta[]): boolean {
+  if (!davPath) return true;
+  return folders.has(davPath) || allFiles.some(f => f.folder === davPath || f.folder.startsWith(davPath + '/'));
+}
+
+function collectChildFolders(davPath: string, folders: Map<string, string>, allFiles: FileMeta[]): string[] {
+  const childSet = new Set<string>();
+  const prefix = davPath ? davPath + '/' : '';
+
   if (!davPath) {
-    const topSet = new Set<string>();
-    for (const [name] of folders) { topSet.add(name.split('/')[0]); }
-    for (const f of allFiles) { if (f.folder !== 'root') topSet.add(f.folder.split('/')[0]); }
-    childFolders.push(...[...topSet].sort());
+    for (const [name] of folders) { childSet.add(name.split('/')[0]); }
+    for (const f of allFiles) { if (f.folder !== 'root') childSet.add(f.folder.split('/')[0]); }
   } else {
     for (const [name] of folders) {
       if (name.startsWith(prefix) && !name.slice(prefix.length).includes('/')) {
-        childFolders.push(name.slice(prefix.length));
+        childSet.add(name.slice(prefix.length));
       }
     }
-    childFolders.sort();
+    for (const f of allFiles) {
+      if (f.folder.startsWith(prefix) && !f.folder.slice(prefix.length).includes('/')) {
+        childSet.add(f.folder.slice(prefix.length));
+      }
+    }
   }
+
+  return [...childSet].sort();
+}
+
+async function serveDirectoryListing(env: Env, davPath: string, folders: Map<string, string>, allFiles: FileMeta[]): Promise<Response> {
+  const displayPath = davPath || '/';
+  const childFolders = collectChildFolders(davPath, folders, allFiles);
 
   const directFiles = davPath
     ? allFiles.filter(f => f.folder === davPath).sort((a, b) => a.name.localeCompare(b.name))
     : allFiles.filter(f => f.folder === 'root').sort((a, b) => a.name.localeCompare(b.name));
 
   let rows = '';
-  if (parentHref) {
-    rows += `<tr><td>📁</td><td><a href="${davPath.includes('/') ? parentHref : '/dav/'}">..</a></td><td>—</td><td>—</td></tr>\n`;
+  if (davPath) {
+    const parentPath = davPath.includes('/') ? davPath.substring(0, davPath.lastIndexOf('/')) : '';
+    rows += `<tr><td>📁</td><td><a href="${encodeDavHref(parentPath, true)}">..</a></td><td>—</td><td>—</td></tr>\n`;
   }
   for (const cf of childFolders) {
-    const href = '/dav/' + encodeURIComponent(davPath ? davPath + '/' + cf : cf) + '/';
-    rows += `<tr><td>📁</td><td><a href="${href}">${escapeHtml(cf)}/</a></td><td>—</td><td>—</td></tr>\n`;
+    const fullPath = davPath ? davPath + '/' + cf : cf;
+    rows += `<tr><td>📁</td><td><a href="${encodeDavHref(fullPath, true)}">${escapeHtml(cf)}/</a></td><td>—</td><td>—</td></tr>\n`;
   }
   for (const f of directFiles) {
-    const href = '/dav/' + encodeURIComponent(davPath ? davPath + '/' + f.name : f.name);
+    const fullPath = davPath ? davPath + '/' + f.name : f.name;
     const date = f.uploadedAt ? new Date(f.uploadedAt).toISOString().slice(0, 16).replace('T', ' ') : '—';
-    rows += `<tr><td>📄</td><td><a href="${href}">${escapeHtml(f.name)}</a></td><td>${formatSize(f.size)}</td><td>${date}</td></tr>\n`;
+    rows += `<tr><td>📄</td><td><a href="${encodeDavHref(fullPath)}">${escapeHtml(f.name)}</a></td><td>${formatSize(f.size)}</td><td>${date}</td></tr>\n`;
   }
 
   const html = `<!DOCTYPE html>
@@ -274,20 +279,22 @@ th{color:#888;font-size:13px}h1{font-size:18px;font-weight:500}</style></head>
 
 async function handleGet(request: Request, env: Env): Promise<Response> {
   const davPath = parseDavPath(request);
-
-  const isBrowser = (request.headers.get('Accept') || '').includes('text/html');
   const folders = await getAllFolders(env);
-  const isDir = !davPath || folders.has(davPath);
+  const allFiles = await getAllFiles(env);
+  const isDir = isDirPath(davPath, folders, allFiles);
 
   if (isDir) {
+    const isBrowser = (request.headers.get('Accept') || '').includes('text/html');
     if (!isBrowser) return new Response('', { status: 200, headers: { 'Content-Type': 'httpd/unix-directory' } });
-    return serveDirectoryListing(env, davPath, folders);
+    return serveDirectoryListing(env, davPath, folders, allFiles);
   }
 
-  const file = await findFileByDavPath(env, davPath);
-  if (!file) return new Response('Not Found', { status: 404 });
+  const folder = toFolder(davPath);
+  const name = toFileName(davPath);
+  const file = allFiles.find(f => f.folder === folder && f.name === name) || null;
 
-  const object = await env.VAULT_BUCKET.get(file.key, {
+  const r2Key = file ? file.key : toR2Key(folder, name);
+  const object = await env.VAULT_BUCKET.get(r2Key, {
     onlyIf: request.headers,
     range: request.headers,
   });
@@ -299,10 +306,14 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
 
   const headers = new Headers();
   object.writeHttpMetadata(headers);
-  headers.set('etag', '"' + file.id + '"');
   headers.set('Content-Length', String(object.size));
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', file.type || getMimeType(file.name));
+  if (file) {
+    headers.set('etag', '"' + file.id + '"');
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', file.type || getMimeType(file.name));
+    }
+  } else if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', getMimeType(name));
   }
 
   return new Response(object.body, { headers });
@@ -310,34 +321,47 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
 
 async function handleHead(request: Request, env: Env): Promise<Response> {
   const davPath = parseDavPath(request);
-  if (!davPath) {
+  const folders = await getAllFolders(env);
+  const allFiles = await getAllFiles(env);
+
+  if (davPath) {
+    const folder = toFolder(davPath);
+    const name = toFileName(davPath);
+    const file = allFiles.find(f => f.folder === folder && f.name === name) || null;
+    if (file) {
+      return new Response(null, {
+        status: 200,
+        headers: {
+          'Content-Type': file.type || getMimeType(file.name),
+          'Content-Length': String(file.size),
+          ETag: '"' + file.id + '"',
+          'Last-Modified': new Date(file.uploadedAt).toUTCString(),
+        },
+      });
+    }
+
+    const r2Key = toR2Key(folder, name);
+    const r2Head = await env.VAULT_BUCKET.head(r2Key);
+    if (r2Head) {
+      return new Response(null, {
+        status: 200,
+        headers: {
+          'Content-Type': r2Head.httpMetadata?.contentType || getMimeType(name),
+          'Content-Length': String(r2Head.size),
+          'Last-Modified': r2Head.uploaded.toUTCString(),
+        },
+      });
+    }
+  }
+
+  if (isDirPath(davPath, folders, allFiles)) {
     return new Response(null, {
       status: 200,
       headers: { 'Content-Type': 'httpd/unix-directory' },
     });
   }
 
-  const file = await findFileByDavPath(env, davPath);
-  if (!file) {
-    const folders = await getAllFolders(env);
-    if (folders.has(davPath)) {
-      return new Response(null, {
-        status: 200,
-        headers: { 'Content-Type': 'httpd/unix-directory' },
-      });
-    }
-    return new Response('Not Found', { status: 404 });
-  }
-
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Content-Type': file.type || getMimeType(file.name),
-      'Content-Length': String(file.size),
-      ETag: '"' + file.id + '"',
-      'Last-Modified': new Date(file.uploadedAt).toUTCString(),
-    },
-  });
+  return new Response('Not Found', { status: 404 });
 }
 
 async function handlePut(request: Request, env: Env): Promise<Response> {
