@@ -70,9 +70,20 @@ export default {
         return await handleApiRoutes(request, env, url, path, method);
       }
 
-      const authResponse = await authMiddleware(request, env);
-      if (authResponse) return authResponse;
-      return env.ASSETS.fetch(request);
+      // Serve static assets (css, js, images, fonts) without auth — needed by all pages
+      if (method === 'GET' && isStaticAsset(path)) {
+        return env.ASSETS.fetch(request);
+      }
+
+      if (method === 'GET') {
+        const cleanResponse = await download.handleCleanDownload(request, env);
+        if (cleanResponse) return cleanResponse;
+      }
+
+      const isAuth = await validateSession(request, env);
+      if (isAuth) return env.ASSETS.fetch(request);
+
+      return await serve404Page(request, env);
 
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Internal server error';
@@ -94,6 +105,27 @@ async function handleRootPage(request: Request, env: Env): Promise<Response> {
   let guestHtml = await fetchAssetHtml(env.ASSETS, request.url, '/guest.html');
   guestHtml = injectBranding(guestHtml, { siteName: siteSettings.siteName, siteIconUrl: siteSettings.siteIconUrl });
   return new Response(guestHtml, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+}
+
+const STATIC_EXTENSIONS = new Set([
+  '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.avif',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf', '.map',
+]);
+
+function isStaticAsset(pathname: string): boolean {
+  const dot = pathname.lastIndexOf('.');
+  if (dot < 0) return false;
+  return STATIC_EXTENSIONS.has(pathname.slice(dot).toLowerCase());
+}
+
+async function serve404Page(request: Request, env: Env): Promise<Response> {
+  const siteSettings = await getSettings(env);
+  let notFoundHtml = await fetchAssetHtml(env.ASSETS, request.url, '/404.html');
+  notFoundHtml = injectBranding(notFoundHtml, { siteName: siteSettings.siteName, siteIconUrl: siteSettings.siteIconUrl });
+  return new Response(notFoundHtml, {
+    status: 404,
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }

@@ -204,7 +204,7 @@
         if (file.token) {
           card.href = '/s/' + file.token;
         } else {
-          card.href = '/api/public/download/' + file.id;
+          card.href = '/' + encodeURI(file.folder + '/' + file.name);
         }
         card.innerHTML =
           '<div class="w-full aspect-video rounded-lg flex items-center justify-center mb-3" style="background:#0d1117">' +

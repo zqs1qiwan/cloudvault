@@ -1,7 +1,8 @@
 import { Env, FileMeta, KV_PREFIX } from '../utils/types';
 import { error, getPreviewType, fetchAssetHtml, injectBranding } from '../utils/response';
-import { verifySharePassword, resolveFolderShareToken, browseFolderShareLink } from '../api/share';
+import { verifySharePassword, resolveFolderShareToken, browseFolderShareLink, getSharedFolders, getExcludedFolders, isFolderShared } from '../api/share';
 import { getSettings } from '../api/settings';
+import { getMimeType } from '../utils/response';
 
 function extractToken(url: URL): string | null {
   const parts = url.pathname.split('/');
@@ -317,4 +318,62 @@ export async function handleSharePassword(request: Request, env: Env): Promise<R
       'Set-Cookie': 'share_' + token + '=verified; Path=/s/' + token + '; HttpOnly; Secure; SameSite=Lax; Max-Age=' + cookieMaxAge,
     },
   });
+}
+
+export async function handleCleanDownload(request: Request, env: Env): Promise<Response | null> {
+  const url = new URL(request.url);
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(url.pathname.slice(1));
+  } catch {
+    return null;
+  }
+
+  if (!decodedPath || !decodedPath.includes('/')) return null;
+
+  const lastSlash = decodedPath.lastIndexOf('/');
+  const folder = decodedPath.substring(0, lastSlash);
+  const fileName = decodedPath.substring(lastSlash + 1);
+  if (!folder || !fileName) return null;
+
+  const sharedFolders = await getSharedFolders(env);
+  const excludedFolders = await getExcludedFolders(env);
+  if (!isFolderShared(folder, sharedFolders, excludedFolders)) return null;
+
+  const meta = await findFileByPath(env, folder, fileName);
+  if (!meta) return null;
+
+  const object = await env.VAULT_BUCKET.get(meta.key);
+  if (!object) return null;
+
+  meta.downloads++;
+  await env.VAULT_KV.put(KV_PREFIX.FILE + meta.id, JSON.stringify(meta));
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('etag', object.httpEtag);
+  headers.set('Cache-Control', 'public, max-age=14400, s-maxage=86400');
+  headers.set('Content-Length', String(object.size));
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', getMimeType(meta.name));
+  }
+  headers.set('Content-Disposition', 'attachment; filename="' + encodeURIComponent(meta.name) + '"');
+
+  return new Response(object.body, { headers });
+}
+
+async function findFileByPath(env: Env, folder: string, fileName: string): Promise<FileMeta | null> {
+  let cursor: string | undefined;
+  for (;;) {
+    const result = await env.VAULT_KV.list({ prefix: KV_PREFIX.FILE, limit: 1000, cursor });
+    for (const key of result.keys) {
+      const raw = await env.VAULT_KV.get(key.name);
+      if (!raw) continue;
+      const meta: FileMeta = JSON.parse(raw);
+      if (meta.folder === folder && meta.name === fileName) return meta;
+    }
+    if (result.list_complete) break;
+    cursor = result.cursor;
+  }
+  return null;
 }

@@ -106,7 +106,7 @@ export async function handleLogout(request: Request, env: Env): Promise<Response
   return new Response(null, {
     status: 302,
     headers: {
-      'Location': '/login',
+      'Location': '/',
       'Set-Cookie': 'session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
     },
   });
