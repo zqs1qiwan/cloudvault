@@ -46,7 +46,7 @@ export default {
         return await share.browsePublicFolder(request, env);
       }
       if (path.startsWith('/api/public/download/') && method === 'GET') {
-        return await share.publicDownload(request, env);
+        return (await serveWithEdgeCache(request, ctx, () => share.publicDownload(request, env)))!;
       }
 
       if (path === '/' && method === 'GET') {
@@ -76,7 +76,7 @@ export default {
       }
 
       if (method === 'GET') {
-        const cleanResponse = await download.handleCleanDownload(request, env);
+        const cleanResponse = await serveWithEdgeCache(request, ctx, () => download.handleCleanDownload(request, env));
         if (cleanResponse) return cleanResponse;
       }
 
@@ -107,6 +107,27 @@ async function handleRootPage(request: Request, env: Env): Promise<Response> {
   return new Response(guestHtml, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
+}
+
+async function serveWithEdgeCache(
+  request: Request,
+  ctx: ExecutionContext,
+  handler: () => Promise<Response | null>,
+): Promise<Response | null> {
+  const cache = caches.default;
+  const cached = await cache.match(request);
+  if (cached) {
+    const headers = new Headers(cached.headers);
+    headers.set('X-Cache', 'HIT');
+    return new Response(cached.body, { status: cached.status, headers });
+  }
+
+  const response = await handler();
+  if (!response || !response.ok) return response;
+
+  ctx.waitUntil(cache.put(request, response.clone()));
+  response.headers.set('X-Cache', 'MISS');
+  return response;
 }
 
 const STATIC_EXTENSIONS = new Set([
