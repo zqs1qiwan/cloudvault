@@ -205,9 +205,84 @@ async function propfindRoot(env: Env, depth: string): Promise<Response> {
   return multistatusResponse(items);
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+async function serveDirectoryListing(env: Env, davPath: string, folders: Map<string, string>): Promise<Response> {
+  const allFiles = await getAllFiles(env);
+  const displayPath = davPath || '/';
+  const prefix = davPath ? davPath + '/' : '';
+  const parentHref = davPath
+    ? '/dav/' + encodeURIComponent(davPath.substring(0, davPath.lastIndexOf('/')).replace(/^\//, '')) + '/'
+    : null;
+
+  const childFolders: string[] = [];
+  if (!davPath) {
+    const topSet = new Set<string>();
+    for (const [name] of folders) { topSet.add(name.split('/')[0]); }
+    for (const f of allFiles) { if (f.folder !== 'root') topSet.add(f.folder.split('/')[0]); }
+    childFolders.push(...[...topSet].sort());
+  } else {
+    for (const [name] of folders) {
+      if (name.startsWith(prefix) && !name.slice(prefix.length).includes('/')) {
+        childFolders.push(name.slice(prefix.length));
+      }
+    }
+    childFolders.sort();
+  }
+
+  const directFiles = davPath
+    ? allFiles.filter(f => f.folder === davPath).sort((a, b) => a.name.localeCompare(b.name))
+    : allFiles.filter(f => f.folder === 'root').sort((a, b) => a.name.localeCompare(b.name));
+
+  let rows = '';
+  if (parentHref) {
+    rows += `<tr><td>📁</td><td><a href="${davPath.includes('/') ? parentHref : '/dav/'}">..</a></td><td>—</td><td>—</td></tr>\n`;
+  }
+  for (const cf of childFolders) {
+    const href = '/dav/' + encodeURIComponent(davPath ? davPath + '/' + cf : cf) + '/';
+    rows += `<tr><td>📁</td><td><a href="${href}">${escapeHtml(cf)}/</a></td><td>—</td><td>—</td></tr>\n`;
+  }
+  for (const f of directFiles) {
+    const href = '/dav/' + encodeURIComponent(davPath ? davPath + '/' + f.name : f.name);
+    const date = f.uploadedAt ? new Date(f.uploadedAt).toISOString().slice(0, 16).replace('T', ' ') : '—';
+    rows += `<tr><td>📄</td><td><a href="${href}">${escapeHtml(f.name)}</a></td><td>${formatSize(f.size)}</td><td>${date}</td></tr>\n`;
+  }
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WebDAV — ${escapeHtml(displayPath)}</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#e0e0e0;background:#1a1a2e}
+a{color:#82aaff;text-decoration:none}a:hover{text-decoration:underline}
+table{border-collapse:collapse;width:100%;max-width:800px}th,td{text-align:left;padding:6px 12px;border-bottom:1px solid #333}
+th{color:#888;font-size:13px}h1{font-size:18px;font-weight:500}</style></head>
+<body><h1>Index of ${escapeHtml(displayPath)}</h1>
+<table><thead><tr><th></th><th>Name</th><th>Size</th><th>Modified</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<p style="color:#555;font-size:12px;margin-top:2rem">CloudVault WebDAV</p></body></html>`;
+
+  return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
+
 async function handleGet(request: Request, env: Env): Promise<Response> {
   const davPath = parseDavPath(request);
-  if (!davPath) return new Response('Cannot GET root collection', { status: 405 });
+
+  const isBrowser = (request.headers.get('Accept') || '').includes('text/html');
+  const folders = await getAllFolders(env);
+  const isDir = !davPath || folders.has(davPath);
+
+  if (isDir) {
+    if (!isBrowser) return new Response('', { status: 200, headers: { 'Content-Type': 'httpd/unix-directory' } });
+    return serveDirectoryListing(env, davPath, folders);
+  }
 
   const file = await findFileByDavPath(env, davPath);
   if (!file) return new Response('Not Found', { status: 404 });
