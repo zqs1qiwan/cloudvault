@@ -3,19 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
   <title>CloudVault</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName}catch{}</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
-      theme: { extend: { colors: { accent: {50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a'} } } }
+      theme: {
+        extend: {
+          colors: {
+            accent: { 50:'#e0fbff',100:'#b3f5ff',200:'#80eeff',300:'#4de7ff',400:'#00E5FF',500:'#00E5FF',600:'#00b8cc',700:'#008a99',800:'#005d66',900:'#002f33' },
+            warm: '#FFB800'
+          },
+          fontFamily: {
+            mono: ["'JetBrains Mono'", "'Noto Sans SC'", 'monospace'],
+            sans: ["'Outfit'", "'Noto Sans SC'", '-apple-system', 'sans-serif']
+          },
+          borderRadius: { sm: '4px', DEFAULT: '6px', md: '8px', lg: '10px', xl: '12px' }
+        }
+      }
+    }
     }
   </script>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1/themes/prism-tomorrow.min.css">
 </head>
-<body class="min-h-screen" style="background:var(--bg-primary);color:var(--text-primary)">
+<body class="min-h-screen" style="font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary)">
+<div class="glow-orbs"></div>
 
 <div x-data="cloudvault()" x-init="init()" @keydown.window="handleKeyboard($event)">
 
@@ -23,7 +40,7 @@
   <header class="sticky top-0 z-50 border-b" style="background:var(--bg-secondary);border-color:var(--border)">
     <div class="flex items-center justify-between h-14 px-4">
       <div class="flex items-center gap-3">
-        <button @click="sidebarOpen = !sidebarOpen" class="md:hidden p-1.5 rounded-lg hover:bg-gray-800">
+        <button @click="sidebarOpen = !sidebarOpen" class="md:hidden p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)]">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
         <div class="flex items-center gap-2">
@@ -192,7 +209,7 @@
         </div>
 
         <!-- List View -->
-        <div x-show="!loading && view === 'list'" class="rounded-xl overflow-hidden border" style="border-color:var(--border)">
+        <div x-show="!loading && view === 'list'" class="rounded-md overflow-hidden border" style="border-color:var(--border)">
           <table class="w-full text-sm">
             <thead>
               <tr style="background:var(--bg-tertiary)">
