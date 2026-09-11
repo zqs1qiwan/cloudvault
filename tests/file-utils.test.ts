@@ -9,6 +9,8 @@ import {
 } from '../src/utils/files';
 import type { Env, FileMeta } from '../src/utils/types';
 import { isFolderShared } from '../src/api/share';
+import { upload } from '../src/api/files';
+import { authMiddleware } from '../src/auth';
 
 function file(overrides: Partial<FileMeta> & Pick<FileMeta, 'id' | 'key'>): FileMeta {
   const name = overrides.key.split('/').pop()!;
@@ -172,6 +174,41 @@ describe('stableObjectId', () => {
   it('gives concurrent uploads for the same object key the same identity', () => {
     expect(stableObjectId('TVBOX/OK-TV-pro.apk')).toBe(stableObjectId('TVBOX/OK-TV-pro.apk'));
     expect(stableObjectId('TVBOX/OK-TV-pro.apk')).not.toBe(stableObjectId('TVBOX/other.apk'));
+  });
+});
+
+describe('multipart upload cleanup', () => {
+  it('aborts an incomplete multipart upload', async () => {
+    let aborted = false;
+    const env = {
+      VAULT_BUCKET: {
+        resumeMultipartUpload: (key: string, uploadId: string) => ({
+          abort: async () => { aborted = key === 'TVBOX/OK-TV.apk' && uploadId === 'upload-1'; },
+        }),
+      },
+    } as unknown as Env;
+    const request = new Request('https://example.com/api/files/upload?action=mpu-abort', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'TVBOX/OK-TV.apk', uploadId: 'upload-1' }),
+    });
+
+    const response = await upload(request, env);
+    expect(response.status).toBe(204);
+    expect(aborted).toBe(true);
+  });
+});
+
+describe('API authentication', () => {
+  it('returns 401 for expired API sessions instead of redirecting fetch to HTML', async () => {
+    const env = {} as Env;
+    const apiResponse = await authMiddleware(new Request('https://example.com/api/files'), env);
+    const pageResponse = await authMiddleware(new Request('https://example.com/admin'), env);
+
+    expect(apiResponse?.status).toBe(401);
+    expect(apiResponse?.headers.get('Content-Type')).toContain('application/json');
+    expect(pageResponse?.status).toBe(302);
+    expect(pageResponse?.headers.get('Location')).toBe('/login');
   });
 });
 

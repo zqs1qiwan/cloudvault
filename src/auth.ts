@@ -122,6 +122,8 @@ export async function authMiddleware(request: Request, env: Env): Promise<Respon
   if (url.pathname === '/login') return null;
 
   const valid = await validateSession(request, env);
-  if (!valid) return redirect('/login');
+  if (!valid) return url.pathname.startsWith('/api/')
+    ? error('Unauthorized', 401)
+    : redirect('/login');
   return null;
 }

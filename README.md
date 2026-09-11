@@ -171,6 +171,7 @@ cloudvault/
 
 | 版本 | 亮点 |
 |------|------|
+| **v1.13.0** | 分片上传超时重试、失败/离页自动终止、未完成会话自动清理 |
 | **v1.12.1** | 修复 Chrome 将保存的管理员用户名自动填入文件搜索框 |
 | **v1.12.0** | 公共列表边缘缓存、搜索框自动填充修复、深色模式对比度提升 |
 | **v1.11.0** | KV 快速首屏、手动 R2 同步、合并后台初始化、静态 Tailwind CSS |
@@ -360,6 +361,7 @@ cloudvault/
 
 | Version | Highlights |
 |---------|-----------|
+| **v1.13.0** | Multipart timeouts and retries, automatic abort on failure/navigation, stale upload cleanup |
 | **v1.12.1** | Prevent Chrome from autofilling the saved admin username into file search |
 | **v1.12.0** | Public listing edge cache, search autofill fix, improved dark-mode contrast |
 | **v1.11.0** | Fast KV-backed startup, manual R2 sync, consolidated bootstrap, static Tailwind CSS |

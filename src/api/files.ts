@@ -47,6 +47,9 @@ export async function upload(request: Request, env: Env): Promise<Response> {
   if (action === 'mpu-complete') {
     return handleMultipartComplete(request, env);
   }
+  if (action === 'mpu-abort') {
+    return handleMultipartAbort(request, env);
+  }
 
   return handleDirectUpload(request, env);
 }
@@ -167,6 +170,19 @@ async function handleMultipartComplete(request: Request, env: Env): Promise<Resp
   await env.VAULT_KV.put(KV_PREFIX.FILE + meta.id, JSON.stringify(meta));
   await updateStatsCounters(env, meta.size - (existing?.size ?? 0), existing ? 0 : 1);
   return json(meta, existing ? 200 : 201);
+}
+
+async function handleMultipartAbort(request: Request, env: Env): Promise<Response> {
+  const body = await request.json<{ uploadId?: string; key?: string }>();
+  if (!body.uploadId || !body.key) return error('Missing uploadId or key', 400);
+  try {
+    const { name, folder } = splitObjectKey(body.key);
+    if (buildObjectKey(folder, name) !== body.key) throw new Error('Invalid key');
+  } catch {
+    return error('Invalid object key', 400);
+  }
+  await env.VAULT_BUCKET.resumeMultipartUpload(body.key, body.uploadId).abort();
+  return new Response(null, { status: 204 });
 }
 
 function selectFiles(request: Request, files: FileMeta[]): FileMeta[] {
