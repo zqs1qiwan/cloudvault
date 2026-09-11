@@ -36,12 +36,26 @@
     <form id="login-form" class="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg p-6 shadow-2xl">
       <div id="error-box" class="hidden mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center"></div>
 
+      <div class="mb-4">
+        <label for="username" class="block text-sm font-medium text-[var(--text-secondary)] mb-2">Account</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          value="root"
+          autocomplete="username"
+          readonly
+          class="w-full px-4 py-3 rounded-md bg-[var(--bg-primary)] border border-[var(--border)] text-[var(--text-secondary)] cursor-default"
+        >
+      </div>
+
       <div class="mb-5">
         <label for="password" class="block text-sm font-medium text-[var(--text-secondary)] mb-2">Password</label>
         <input
           type="password"
           id="password"
           name="password"
+          autocomplete="current-password"
           placeholder="Enter your password"
           required
           autofocus

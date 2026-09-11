@@ -30,5 +30,14 @@ describe('HTML inline scripts', () => {
       expect(html).toContain('data-1p-ignore');
       expect(html).toContain('data-lpignore="true"');
     }
+    const dashboard = readFileSync(join('public', 'dashboard.html'), 'utf8');
+    expect(dashboard).toContain('role="search"');
+    expect(dashboard).toMatch(/id="file-search"[^>]*readonly[^>]*onfocus="this\.removeAttribute\('readonly'\)"/);
+  });
+
+  it('gives Chrome a dedicated username field on the login form', () => {
+    const html = readFileSync(join('public', 'login.html'), 'utf8');
+    expect(html).toMatch(/name="username"[\s\S]*?autocomplete="username"/);
+    expect(html).toMatch(/name="password"[\s\S]*?autocomplete="current-password"/);
   });
 });
