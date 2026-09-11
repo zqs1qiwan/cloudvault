@@ -80,10 +80,10 @@ export default {
       }
 
       if (path === '/api/public/shared' && method === 'GET') {
-        return await share.listPublicShared(request, env);
+        return await cachedPublicApi(request, ctx, () => share.listPublicShared(request, env));
       }
       if (path === '/api/public/folder' && method === 'GET') {
-        return await share.browsePublicFolder(request, env);
+        return await cachedPublicApi(request, ctx, () => share.browsePublicFolder(request, env));
       }
       if (path.startsWith('/api/public/download/') && method === 'GET') {
         return await share.publicDownload(request, env);
@@ -132,6 +132,24 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>;
+
+async function cachedPublicApi(
+  request: Request,
+  ctx: ExecutionContext,
+  load: () => Promise<Response>,
+): Promise<Response> {
+  const cache = caches.default;
+  const cached = await cache.match(request);
+  if (cached) return cached;
+
+  const response = await load();
+  if (!response.ok) return response;
+
+  const cacheable = new Response(response.body, response);
+  cacheable.headers.set('Cache-Control', 'public, max-age=15, s-maxage=60');
+  ctx.waitUntil(cache.put(request, cacheable.clone()));
+  return cacheable;
+}
 
 async function handleRootPage(request: Request, env: Env): Promise<Response> {
   const siteSettings = await getSettings(env);

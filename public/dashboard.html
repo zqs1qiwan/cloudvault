@@ -98,7 +98,7 @@
         <div class="flex items-center gap-2">
           <div class="relative">
             <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-            <input type="search" placeholder="Search files..." x-model="searchQuery" @input.debounce.300ms="fetchFiles()" class="pl-10 pr-3 py-1.5 text-sm w-44 sm:w-56">
+            <input id="file-search" name="cloudvault-file-filter" type="search" role="searchbox" placeholder="Search files..." autocomplete="off" autocapitalize="none" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore="true" data-form-type="other" x-model="searchQuery" @input.debounce.300ms="fetchFiles()" class="pl-10 pr-3 py-1.5 text-sm w-44 sm:w-56">
           </div>
 
           <div class="relative" x-data="{ open: false }">

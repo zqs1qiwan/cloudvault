@@ -83,7 +83,7 @@
       <div class="flex items-center gap-3 mb-4" x-show="!loading && (folders.length > 0 || allFiles.length > 0)" x-cloak>
         <div class="relative flex-1 max-w-xs">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-          <input type="search" x-model="searchQuery" placeholder="Search files..." class="w-full text-sm pl-10 pr-3 py-2">
+          <input name="cloudvault-public-file-filter" type="search" role="searchbox" x-model="searchQuery" placeholder="Search files..." autocomplete="off" autocapitalize="none" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore="true" data-form-type="other" class="w-full text-sm pl-10 pr-3 py-2">
         </div>
         <span class="text-xs whitespace-nowrap hidden sm:inline" style="color:var(--text-muted)" x-text="fileCountLabel"></span>
       </div>

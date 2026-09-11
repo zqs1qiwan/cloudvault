@@ -171,6 +171,7 @@ cloudvault/
 
 | 版本 | 亮点 |
 |------|------|
+| **v1.12.0** | 公共列表边缘缓存、搜索框自动填充修复、深色模式对比度提升 |
 | **v1.11.0** | KV 快速首屏、手动 R2 同步、合并后台初始化、静态 Tailwind CSS |
 | **v1.10.0** | R2/KV 自动对账、同名文件覆盖、下载与 Range 修复、安全和交互全面加固 |
 | **v1.5.0** | WebDAV 支持、访客页面 UI 修复 |
@@ -358,6 +359,7 @@ cloudvault/
 
 | Version | Highlights |
 |---------|-----------|
+| **v1.12.0** | Public listing edge cache, search autofill fix, improved dark-mode contrast |
 | **v1.11.0** | Fast KV-backed startup, manual R2 sync, consolidated bootstrap, static Tailwind CSS |
 | **v1.10.0** | R2/KV reconciliation, same-name overwrite, download and Range fixes, security and UI hardening |
 | **v1.5.0** | WebDAV support, guest page UI fixes |

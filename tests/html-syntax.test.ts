@@ -22,4 +22,13 @@ describe('HTML inline scripts', () => {
     }
     expect(readFileSync('public/css/tailwind.css', 'utf8').length).toBeGreaterThan(1000);
   });
+
+  it('marks file search fields as search-only inputs', () => {
+    for (const name of ['dashboard.html', 'guest.html']) {
+      const html = readFileSync(join('public', name), 'utf8');
+      expect(html).toMatch(/type="search"[^>]*autocomplete="off"/);
+      expect(html).toContain('data-1p-ignore');
+      expect(html).toContain('data-lpignore="true"');
+    }
+  });
 });
