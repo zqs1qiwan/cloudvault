@@ -211,6 +211,12 @@ async function handleApiRoutes(
   if (path === '/api/files' && method === 'GET') {
     return files.list(request, env);
   }
+  if (path === '/api/bootstrap' && method === 'GET') {
+    return files.bootstrap(request, env);
+  }
+  if (path === '/api/files/sync' && method === 'POST') {
+    return files.syncIndex(request, env);
+  }
   if (path === '/api/files/upload' && method === 'POST') {
     return files.upload(request, env);
   }

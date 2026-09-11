@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   buildFileIndexPlan,
   buildObjectKey,
+  getIndexedFiles,
   parseSingleRange,
+  stableObjectId,
   type IndexedObject,
 } from '../src/utils/files';
-import type { FileMeta } from '../src/utils/types';
+import type { Env, FileMeta } from '../src/utils/types';
 import { isFolderShared } from '../src/api/share';
 
 function file(overrides: Partial<FileMeta> & Pick<FileMeta, 'id' | 'key'>): FileMeta {
@@ -114,6 +116,62 @@ describe('buildFileIndexPlan', () => {
     });
     expect(plan.deletes).not.toContain('stable-id');
     expect(plan.puts).toHaveLength(1);
+  });
+
+  it('assigns unique ids when multiple objects claim the same file id', () => {
+    const plan = buildFileIndexPlan([], [
+      object('first.txt', { customMetadata: { fileId: 'duplicate-id' } }),
+      object('second.txt', { customMetadata: { fileId: 'duplicate-id' } }),
+    ]);
+
+    expect(new Set(plan.files.map(item => item.id)).size).toBe(2);
+    expect(plan.files.every(item => item.id !== 'duplicate-id')).toBe(true);
+  });
+
+  it('does not let another object steal the id of an existing object', () => {
+    const existing = file({ id: 'owned-id', key: 'owner.txt' });
+    const plan = buildFileIndexPlan([existing], [
+      object('attacker.txt', { customMetadata: { fileId: 'owned-id' } }),
+      object('owner.txt', { customMetadata: { fileId: 'owned-id' } }),
+    ]);
+
+    expect(plan.files.find(item => item.key === 'owner.txt')?.id).toBe('owned-id');
+    expect(plan.files.find(item => item.key === 'attacker.txt')?.id).not.toBe('owned-id');
+  });
+
+  it('does not inherit a relocated share when the file id claim is ambiguous', () => {
+    const missing = file({ id: 'old-id', key: 'missing.txt', shareToken: 'private-share' });
+    const plan = buildFileIndexPlan([missing], [
+      object('first.txt', { customMetadata: { fileId: 'old-id' } }),
+      object('second.txt', { customMetadata: { fileId: 'old-id' } }),
+    ]);
+
+    expect(plan.files.every(item => item.shareToken === null)).toBe(true);
+    expect(plan.shareUpdates).toEqual([]);
+  });
+});
+
+describe('getIndexedFiles', () => {
+  it('reads the persisted index without scanning R2', async () => {
+    const stored = file({ id: 'indexed-id', key: 'TVBOX/OK-TV-pro.apk' });
+    const env = {
+      VAULT_KV: {
+        list: async () => ({ keys: [{ name: 'file:indexed-id' }], list_complete: true }),
+        get: async () => JSON.stringify(stored),
+      },
+      VAULT_BUCKET: {
+        list: async () => { throw new Error('normal reads must not scan R2'); },
+      },
+    } as unknown as Env;
+
+    await expect(getIndexedFiles(env)).resolves.toEqual([stored]);
+  });
+});
+
+describe('stableObjectId', () => {
+  it('gives concurrent uploads for the same object key the same identity', () => {
+    expect(stableObjectId('TVBOX/OK-TV-pro.apk')).toBe(stableObjectId('TVBOX/OK-TV-pro.apk'));
+    expect(stableObjectId('TVBOX/OK-TV-pro.apk')).not.toBe(stableObjectId('TVBOX/other.apk'));
   });
 });
 

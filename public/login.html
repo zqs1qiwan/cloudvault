@@ -8,25 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
   <title>CloudVault — Login</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName+' — Login'}catch{}</script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            accent: { 50:'#e0fbff',100:'#b3f5ff',200:'#80eeff',300:'#4de7ff',400:'#00E5FF',500:'#00E5FF',600:'#00b8cc',700:'#008a99',800:'#005d66',900:'#002f33' },
-            warm: '#FFB800'
-          },
-          fontFamily: {
-            mono: ["'JetBrains Mono'", "'Noto Sans SC'", 'monospace'],
-            sans: ["'Outfit'", "'Noto Sans SC'", '-apple-system', 'sans-serif']
-          },
-          borderRadius: { sm: '4px', DEFAULT: '6px', md: '8px', lg: '10px', xl: '12px' }
-        }
-      }
-    }
-  </script>
+  <link rel="stylesheet" href="/css/tailwind.css">
   <style>
     @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     .fade-up { animation: fadeUp 0.5s ease-out; }

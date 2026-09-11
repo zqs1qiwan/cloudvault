@@ -1,6 +1,6 @@
 import { Env, FileMeta, KV_PREFIX } from '../utils/types';
 import { getMimeType } from '../utils/response';
-import { contentDisposition, getAllIndexedFiles, parseSingleRange } from '../utils/files';
+import { contentDisposition, getIndexedFiles, parseSingleRange } from '../utils/files';
 import {
   multistatusResponse,
   propstatEntry,
@@ -14,7 +14,7 @@ const DAV_PREFIX = '/dav/';
 const DAV_METHODS = 'OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY';
 
 function getAllFiles(env: Env): Promise<FileMeta[]> {
-  return getAllIndexedFiles(env, true);
+  return getIndexedFiles(env);
 }
 
 function parseDavPath(request: Request): string {

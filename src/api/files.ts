@@ -6,10 +6,14 @@ import {
   contentDisposition,
   findIndexedFileByKey,
   getAllIndexedFiles,
+  getIndexedFiles,
   normalizeFolder,
   parseSingleRange,
   serveR2File,
+  splitObjectKey,
+  stableObjectId,
 } from '../utils/files';
+import { buildStats } from './stats';
 
 function extractId(url: URL): string | null {
   const parts = url.pathname.split('/');
@@ -60,7 +64,7 @@ async function handleDirectUpload(request: Request, env: Env): Promise<Response>
   let key: string;
   try { key = buildObjectKey(folder, fileName); } catch { return error('Invalid file path', 400); }
   const existing = await findIndexedFileByKey(env, key);
-  const id = existing?.id ?? crypto.randomUUID();
+  const id = existing?.id ?? stableObjectId(key);
 
   const r2Object = await env.VAULT_BUCKET.put(key, request.body, {
     httpMetadata: {
@@ -105,7 +109,7 @@ async function handleMultipartCreate(request: Request, env: Env): Promise<Respon
   }
   const contentType = request.headers.get('Content-Type') || getMimeType(fileName);
   const existing = await findIndexedFileByKey(env, key);
-  const id = existing?.id ?? crypto.randomUUID();
+  const id = existing?.id ?? stableObjectId(key);
 
   const multipart = await env.VAULT_BUCKET.createMultipartUpload(key, {
     httpMetadata: {
@@ -137,30 +141,57 @@ async function handleMultipartComplete(request: Request, env: Env): Promise<Resp
     key: string;
     parts: { partNumber: number; etag: string }[];
   }>();
+  if (!body.uploadId || !body.key || !body.parts?.length) {
+    return error('Invalid multipart upload data', 400);
+  }
 
   const multipart = env.VAULT_BUCKET.resumeMultipartUpload(body.key, body.uploadId);
   const r2Object = await multipart.complete(body.parts);
-
-  const meta = await findIndexedFileByKey(env, body.key);
-  if (!meta) return error('Upload completed but indexing failed', 500);
-  return json(meta, 201);
+  const fileId = r2Object.customMetadata?.fileId;
+  if (!fileId) return error('Upload completed without file identity', 500);
+  const existing = await findIndexedFileByKey(env, body.key);
+  const { name, folder } = splitObjectKey(body.key);
+  const meta: FileMeta = {
+    id: existing?.id ?? fileId,
+    key: body.key,
+    name,
+    folder,
+    size: r2Object.size,
+    type: r2Object.httpMetadata?.contentType ?? existing?.type ?? getMimeType(name),
+    uploadedAt: new Date().toISOString(),
+    shareToken: existing?.shareToken ?? null,
+    sharePassword: existing?.sharePassword ?? null,
+    shareExpiresAt: existing?.shareExpiresAt ?? null,
+    downloads: existing?.downloads ?? 0,
+  };
+  await env.VAULT_KV.put(KV_PREFIX.FILE + meta.id, JSON.stringify(meta));
+  await updateStatsCounters(env, meta.size - (existing?.size ?? 0), existing ? 0 : 1);
+  return json(meta, existing ? 200 : 201);
 }
 
-export async function list(request: Request, env: Env): Promise<Response> {
+function selectFiles(request: Request, files: FileMeta[]): FileMeta[] {
   const url = new URL(request.url);
   const folderFilter = url.searchParams.get('folder');
   const searchFilter = url.searchParams.get('search')?.toLowerCase();
+  let selected = files.filter(f => f.folder === (folderFilter || 'root'));
+  if (searchFilter) selected = selected.filter(f => f.name.toLowerCase().includes(searchFilter));
+  return selected.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+}
 
-  let files = await getAllIndexedFiles(env, true);
-
-  files = files.filter(f => f.folder === (folderFilter || 'root'));
-  if (searchFilter) {
-    files = files.filter(f => f.name.toLowerCase().includes(searchFilter));
-  }
-
-  files.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-
+export async function list(request: Request, env: Env): Promise<Response> {
+  const files = selectFiles(request, await getIndexedFiles(env));
   return json({ files, cursor: null, totalFiles: files.length });
+}
+
+export async function syncIndex(request: Request, env: Env): Promise<Response> {
+  const allFiles = await getAllIndexedFiles(env, true);
+  const folders = await getFolderList(env, allFiles);
+  return json({
+    totalFiles: allFiles.length,
+    files: selectFiles(request, allFiles),
+    folders,
+    stats: buildStats(allFiles),
+  });
 }
 
 export async function get(request: Request, env: Env): Promise<Response> {
@@ -329,7 +360,7 @@ export async function deleteFolder(request: Request, env: Env): Promise<Response
   }
 
   // Delete all contained files (R2 objects + KV entries + share tokens)
-  const allFiles = await getAllIndexedFiles(env, true);
+  const allFiles = await getIndexedFiles(env);
   let deletedFiles = 0;
   let totalSizeRemoved = 0;
   for (const file of allFiles) {
@@ -365,7 +396,7 @@ export async function renameFolder(request: Request, env: Env): Promise<Response
   if (newName.startsWith(oldName + '/')) return error('Cannot move a folder into itself', 409);
   if (await env.VAULT_KV.get('folder:' + newName)) return error('Target folder already exists', 409);
 
-  const allFiles = await getAllIndexedFiles(env, true);
+  const allFiles = await getIndexedFiles(env);
   const movingIds = new Set(allFiles
     .filter((file) => file.folder === oldName || file.folder.startsWith(oldName + '/'))
     .map((file) => file.id));
@@ -460,8 +491,7 @@ export async function renameFolder(request: Request, env: Env): Promise<Response
   return json({ folder: newName });
 }
 
-export async function listFolders(_request: Request, env: Env): Promise<Response> {
-  const files = await getAllIndexedFiles(env, true);
+async function getFolderList(env: Env, files: FileMeta[]) {
   const folderSet = new Set<string>();
 
   for (const file of files) {
@@ -493,14 +523,24 @@ export async function listFolders(_request: Request, env: Env): Promise<Response
 
   const sharedFolders = await getSharedFolders(env);
   const excludedFolders = await getExcludedFolders(env);
-  const folderList = Array.from(folderSet).sort().map(name => ({
+  return Array.from(folderSet).sort().map(name => ({
     name,
     shared: isFolderShared(name, sharedFolders, excludedFolders),
     directlyShared: sharedFolders.has(name),
     excluded: excludedFolders.has(name),
   }));
 
-  return json({ folders: folderList });
+}
+
+export async function listFolders(_request: Request, env: Env): Promise<Response> {
+  return json({ folders: await getFolderList(env, await getIndexedFiles(env)) });
+}
+
+export async function bootstrap(request: Request, env: Env): Promise<Response> {
+  const allFiles = await getIndexedFiles(env);
+  const folders = await getFolderList(env, allFiles);
+  const files = selectFiles(request, allFiles);
+  return json({ files, folders, stats: buildStats(allFiles) });
 }
 
 export async function moveFiles(request: Request, env: Env): Promise<Response> {
@@ -510,7 +550,7 @@ export async function moveFiles(request: Request, env: Env): Promise<Response> {
 
   let targetFolder: string;
   try { targetFolder = normalizeFolder(body.targetFolder); } catch { return error('Invalid target folder', 400); }
-  const allFiles = await getAllIndexedFiles(env, true);
+  const allFiles = await getIndexedFiles(env);
   const reservedKeys = new Set(allFiles.map((file) => file.key));
   const operations: Array<{ meta: FileMeta; newKey: string }> = [];
   const targetKeys = new Set<string>();

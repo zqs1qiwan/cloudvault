@@ -63,7 +63,7 @@ A personal cloud storage platform built on **Cloudflare Workers + R2**. Zero ser
 | 运行时 | [Cloudflare Workers](https://workers.cloudflare.com/) |
 | 文件存储 | [Cloudflare R2](https://developers.cloudflare.com/r2/)（S3 兼容对象存储） |
 | 元数据 | [Cloudflare KV](https://developers.cloudflare.com/kv/)（键值存储） |
-| 前端 | Alpine.js + Tailwind CSS（CDN 加载） |
+| 前端 | Alpine.js + 构建期 Tailwind CSS |
 | 协议 | WebDAV Class 1（RFC 4918） |
 | 语言 | TypeScript（后端）、JavaScript（前端） |
 
@@ -171,6 +171,7 @@ cloudvault/
 
 | 版本 | 亮点 |
 |------|------|
+| **v1.11.0** | KV 快速首屏、手动 R2 同步、合并后台初始化、静态 Tailwind CSS |
 | **v1.10.0** | R2/KV 自动对账、同名文件覆盖、下载与 Range 修复、安全和交互全面加固 |
 | **v1.5.0** | WebDAV 支持、访客页面 UI 修复 |
 | **v1.4.0** | 访客页面重设计为交互式文件浏览器 |
@@ -249,7 +250,7 @@ cloudvault/
 | Runtime | [Cloudflare Workers](https://workers.cloudflare.com/) |
 | Storage | [Cloudflare R2](https://developers.cloudflare.com/r2/) (S3-compatible object storage) |
 | Metadata | [Cloudflare KV](https://developers.cloudflare.com/kv/) (key-value store) |
-| Frontend | Alpine.js + Tailwind CSS (CDN) |
+| Frontend | Alpine.js + build-time Tailwind CSS |
 | Protocol | WebDAV Class 1 (RFC 4918) |
 | Language | TypeScript (backend), JavaScript (frontend) |
 
@@ -357,6 +358,7 @@ cloudvault/
 
 | Version | Highlights |
 |---------|-----------|
+| **v1.11.0** | Fast KV-backed startup, manual R2 sync, consolidated bootstrap, static Tailwind CSS |
 | **v1.10.0** | R2/KV reconciliation, same-name overwrite, download and Range fixes, security and UI hardening |
 | **v1.5.0** | WebDAV support, guest page UI fixes |
 | **v1.4.0** | Guest page redesigned as interactive file browser |

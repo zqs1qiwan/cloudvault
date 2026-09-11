@@ -17,6 +17,7 @@ function cloudvault() {
     showNewFolderModal: false,
     newFolderName: '',
     loading: true,
+    syncing: false,
     uploads: [],
     sidebarOpen: false,
     ctxMenu: { show: false, x: 0, y: 0, file: null },
@@ -46,7 +47,7 @@ function cloudvault() {
       this.setupUploadEvents();
       this.setupTreeEvents();
 
-      await Promise.all([this.fetchFiles(), this.fetchFolders(), this.fetchStats()]);
+      await this.fetchBootstrap();
       this.loading = false;
     },
 
@@ -81,7 +82,7 @@ function cloudvault() {
           id: q.id, name: q.file.name, progress: q.progress, status: q.status
         }))];
         this.showToast(e.detail.name + ' uploaded', 'success');
-        await Promise.all([this.fetchFiles(), this.fetchStats(), this.fetchFolders()]);
+        await this.fetchBootstrap();
       });
       window.addEventListener('upload-error', (e) => {
         this.uploads = [...window.UploadManager.queue.map(q => ({
@@ -385,6 +386,39 @@ function cloudvault() {
       const res = await fetch(url, { credentials: 'same-origin', ...opts });
       if (res.status === 401) { window.location.href = '/login'; return null; }
       return res;
+    },
+
+    async fetchBootstrap() {
+      const params = new URLSearchParams({ folder: this.currentFolder });
+      if (this.searchQuery) params.set('search', this.searchQuery);
+      const res = await this.apiFetch('/api/bootstrap?' + params);
+      if (!res || !res.ok) { this.showToast('Failed to load dashboard', 'error'); return; }
+      this.applyDashboard(await res.json());
+    },
+
+    applyDashboard(data) {
+      this.files = data.files || [];
+      this.folders = data.folders || [];
+      this.stats = data.stats || this.stats;
+      this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.directlyShared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
+    },
+
+    async syncR2() {
+      if (this.syncing) return;
+      this.syncing = true;
+      try {
+        const params = new URLSearchParams({ folder: this.currentFolder });
+        if (this.searchQuery) params.set('search', this.searchQuery);
+        const res = await this.apiFetch('/api/files/sync?' + params, { method: 'POST' });
+        if (!res || !res.ok) throw new Error('Sync failed');
+        const data = await res.json();
+        this.applyDashboard(data);
+        this.showToast(data.totalFiles + ' files synchronized', 'success');
+      } catch {
+        this.showToast('Failed to synchronize R2', 'error');
+      } finally {
+        this.syncing = false;
+      }
     },
 
     async fetchFiles() {

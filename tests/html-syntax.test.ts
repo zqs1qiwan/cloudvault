@@ -12,4 +12,14 @@ describe('HTML inline scripts', () => {
       }
     });
   }
+
+  it('uses the generated Tailwind stylesheet instead of the runtime CDN', () => {
+    const pages = readdirSync('public').filter((file) => file.endsWith('.html'));
+    for (const name of pages) {
+      const html = readFileSync(join('public', name), 'utf8');
+      expect(html).toContain('/css/tailwind.css');
+      expect(html).not.toContain('cdn.tailwindcss.com');
+    }
+    expect(readFileSync('public/css/tailwind.css', 'utf8').length).toBeGreaterThan(1000);
+  });
 });

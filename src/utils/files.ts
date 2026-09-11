@@ -47,7 +47,7 @@ export function splitObjectKey(key: string): { name: string; folder: string } {
     : { name: key.slice(slash + 1), folder: key.slice(0, slash) };
 }
 
-function stableObjectId(key: string): string {
+export function stableObjectId(key: string): string {
   const seeds = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
   const values = seeds.map((seed) => {
     let hash = seed;
@@ -78,22 +78,40 @@ export function buildFileIndexPlan(existing: FileMeta[], objects: IndexedObject[
   const shareUpdates: Array<{ token: string; fileId: string }> = [];
   const shareDeletes: string[] = [];
   const objectKeys = new Set(objects.map((object) => object.key));
+  const claimedIds = new Set<string>();
+  const preferredIdCounts = new Map<string, number>();
+  for (const object of objects) {
+    const id = object.customMetadata?.fileId;
+    if (id) preferredIdCounts.set(id, (preferredIdCounts.get(id) ?? 0) + 1);
+  }
 
   for (const object of objects) {
     const candidates = (byKey.get(object.key) ?? []).sort((a, b) =>
       a.uploadedAt.localeCompare(b.uploadedAt),
     );
     const preferredId = object.customMetadata?.fileId;
+    const preferredMeta = existing.find((meta) => meta.id === preferredId);
+    const hasUniquePreferredId = !!preferredId && preferredIdCounts.get(preferredId) === 1;
+    const relocatedMeta = preferredMeta && hasUniquePreferredId && !objectKeys.has(preferredMeta.key)
+      ? preferredMeta
+      : null;
     const canonical = candidates[0]
-      ?? existing.find((meta) => meta.id === preferredId)
+      ?? relocatedMeta
       ?? null;
     const related = canonical && !candidates.some((meta) => meta.id === canonical.id)
       ? [canonical, ...candidates]
       : candidates;
     const shared = related.find((meta) => meta.shareToken);
     const { name, folder } = splitObjectKey(object.key);
+    const usablePreferredId = hasUniquePreferredId && (!preferredMeta || relocatedMeta) ? preferredId : undefined;
+    let id = canonical?.id ?? usablePreferredId ?? stableObjectId(object.key);
+    if (claimedIds.has(id)) id = stableObjectId(object.key);
+    let suffix = 1;
+    const baseId = id;
+    while (claimedIds.has(id)) id = `${baseId}-${suffix++}`;
+    claimedIds.add(id);
     const next: FileMeta = {
-      id: canonical?.id ?? preferredId ?? stableObjectId(object.key),
+      id,
       key: object.key,
       name,
       size: object.size,
@@ -155,6 +173,10 @@ export async function getStoredFiles(env: Env): Promise<FileMeta[]> {
   return files;
 }
 
+export async function getIndexedFiles(env: Env): Promise<FileMeta[]> {
+  return getStoredFiles(env);
+}
+
 async function readR2Objects(env: Env): Promise<IndexedObject[]> {
   const objects: IndexedObject[] = [];
   let cursor: string | undefined;
@@ -189,7 +211,7 @@ export async function getAllIndexedFiles(env: Env, repair = false): Promise<File
 }
 
 export async function findIndexedFileByKey(env: Env, key: string): Promise<FileMeta | null> {
-  const files = await getAllIndexedFiles(env, true);
+  const files = await getIndexedFiles(env);
   return files.find((file) => file.key === key) ?? null;
 }
 
