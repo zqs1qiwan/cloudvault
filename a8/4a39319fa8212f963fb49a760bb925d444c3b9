@@ -1,0 +1,19 @@
+public/css/tailwind.css
+  s_b9254af824e4d8::t_13fc1d8d7964af 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a84a39319fa8212f963fb49a760bb925d444c3b9",
+  "prompts": {},
+  "sessions": {
+    "s_b9254af824e4d8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7691e82bffeT436xlKrQBaDik",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "zqs1qiwan <zqs1qiwan@gmail.com>"
+    }
+  }
+}
