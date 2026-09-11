@@ -1,6 +1,7 @@
 import { Env, FileMeta, KV_PREFIX } from '../utils/types';
 import { json, error } from '../utils/response';
 import { getSettings } from './settings';
+import { getStoredFiles, serveR2File } from '../utils/files';
 
 function extractFileId(url: URL): string | null {
   const parts = url.pathname.split('/');
@@ -58,32 +59,16 @@ export async function getExcludedFolders(env: Env): Promise<Set<string>> {
 
 export function isFolderShared(folderPath: string, sharedFolders: Set<string>, excludedFolders?: Set<string>): boolean {
   if (!folderPath || folderPath === 'root') return false;
-  if (excludedFolders?.has(folderPath)) return false;
+  const ancestors: string[] = [];
   let current = folderPath;
   while (current) {
-    if (sharedFolders.has(current)) return true;
+    ancestors.push(current);
     const lastSlash = current.lastIndexOf('/');
     if (lastSlash < 0) break;
     current = current.substring(0, lastSlash);
   }
-  return false;
-}
-
-async function getAllFiles(env: Env): Promise<FileMeta[]> {
-  const files: FileMeta[] = [];
-  let cursor: string | undefined;
-  for (;;) {
-    const result = await env.VAULT_KV.list({ prefix: KV_PREFIX.FILE, limit: 1000, cursor });
-    for (const key of result.keys) {
-      const raw = await env.VAULT_KV.get(key.name);
-      if (raw) {
-        try { files.push(JSON.parse(raw)); } catch { /* skip */ }
-      }
-    }
-    if (result.list_complete) break;
-    cursor = result.cursor;
-  }
-  return files;
+  if (excludedFolders && ancestors.some((folder) => excludedFolders.has(folder))) return false;
+  return ancestors.some((folder) => sharedFolders.has(folder));
 }
 
 // ─── File Share CRUD ──────────────────────────────────────────────────
@@ -305,7 +290,7 @@ export async function resolveFolderShareToken(token: string, env: Env): Promise<
 
 export async function browseFolderShareLink(folder: string, subpath: string, env: Env): Promise<{ files: Array<{ id: string; name: string; size: number; type: string; folder: string; uploadedAt: string }>; subfolders: string[] }> {
   const browsePath = subpath ? folder + '/' + subpath : folder;
-  const allFiles = await getAllFiles(env);
+  const allFiles = await getStoredFiles(env);
   const prefix = browsePath + '/';
 
   const folderFiles = allFiles
@@ -351,7 +336,7 @@ export async function listPublicShared(request: Request, env: Env): Promise<Resp
   const settings = await getSettings(env);
   const sharedFolders = await getSharedFolders(env);
   const excludedFolders = await getExcludedFolders(env);
-  const allFiles = await getAllFiles(env);
+  const allFiles = await getStoredFiles(env);
 
   const visibleFolders = Array.from(sharedFolders).filter(sf => !excludedFolders.has(sf));
 
@@ -403,7 +388,7 @@ export async function browsePublicFolder(request: Request, env: Env): Promise<Re
     return error('Folder not shared', 403);
   }
 
-  const allFiles = await getAllFiles(env);
+  const allFiles = await getStoredFiles(env);
   const prefix = path + '/';
 
   let folderFiles: Array<{
@@ -491,18 +476,15 @@ export async function publicDownload(request: Request, env: Env): Promise<Respon
     return error('File not publicly accessible', 403);
   }
 
-  const object = await env.VAULT_BUCKET.get(meta.key);
-  if (!object) return error('File not found in storage', 404);
-
   meta.downloads++;
   await env.VAULT_KV.put(KV_PREFIX.FILE + meta.id, JSON.stringify(meta));
-
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set('etag', object.httpEtag);
-  headers.set('Cache-Control', 'public, max-age=14400, s-maxage=86400');
-  headers.set('Content-Disposition', 'attachment; filename="' + encodeURIComponent(meta.name) + '"');
-  headers.set('Content-Length', String(object.size));
-
-  return new Response(object.body, { headers });
+  return await serveR2File(
+    request,
+    env.VAULT_BUCKET,
+    meta.key,
+    meta.name,
+    'attachment',
+    'public, max-age=14400',
+    meta.type,
+  ) ?? error('File not found in storage', 404);
 }

@@ -71,7 +71,7 @@ A personal cloud storage platform built on **Cloudflare Workers + R2**. Zero ser
 
 #### 环境要求
 
-- [Node.js](https://nodejs.org/) >= 18
+- [Node.js](https://nodejs.org/) >= 20.19
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) >= 4.0
 - Cloudflare 账号
 
@@ -171,6 +171,7 @@ cloudvault/
 
 | 版本 | 亮点 |
 |------|------|
+| **v1.10.0** | R2/KV 自动对账、同名文件覆盖、下载与 Range 修复、安全和交互全面加固 |
 | **v1.5.0** | WebDAV 支持、访客页面 UI 修复 |
 | **v1.4.0** | 访客页面重设计为交互式文件浏览器 |
 | **v1.3.x** | 简洁下载 URL、CDN 边缘缓存 |
@@ -256,7 +257,7 @@ cloudvault/
 
 #### Prerequisites
 
-- [Node.js](https://nodejs.org/) >= 18
+- [Node.js](https://nodejs.org/) >= 20.19
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) >= 4.0
 - A Cloudflare account
 
@@ -356,6 +357,7 @@ cloudvault/
 
 | Version | Highlights |
 |---------|-----------|
+| **v1.10.0** | R2/KV reconciliation, same-name overwrite, download and Range fixes, security and UI hardening |
 | **v1.5.0** | WebDAV support, guest page UI fixes |
 | **v1.4.0** | Guest page redesigned as interactive file browser |
 | **v1.3.x** | Clean download URLs, CDN edge caching |

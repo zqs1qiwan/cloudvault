@@ -4,6 +4,8 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* ─── Design Tokens (Night / Default) ──────────────────────────────── */
+[x-cloak] { display: none !important; }
+
 :root {
   --color-primary: #00E5FF;
   --color-primary-rgb: 0, 229, 255;

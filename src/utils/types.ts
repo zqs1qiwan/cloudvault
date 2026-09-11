@@ -1,11 +1,7 @@
 // ─── Environment Bindings ─────────────────────────────────────────────
-export interface Env {
-  VAULT_BUCKET: R2Bucket;
-  VAULT_KV: KVNamespace;
-  ASSETS: Fetcher;
+export interface Env extends Cloudflare.Env {
   ADMIN_PASSWORD: string;   // wrangler secret
   SESSION_SECRET: string;   // wrangler secret
-  ENVIRONMENT: string;
 }
 
 // ─── File Metadata (stored in KV) ─────────────────────────────────────

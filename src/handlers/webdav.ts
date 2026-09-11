@@ -1,5 +1,6 @@
 import { Env, FileMeta, KV_PREFIX } from '../utils/types';
 import { getMimeType } from '../utils/response';
+import { contentDisposition, getAllIndexedFiles, parseSingleRange } from '../utils/files';
 import {
   multistatusResponse,
   propstatEntry,
@@ -11,6 +12,10 @@ import {
 
 const DAV_PREFIX = '/dav/';
 const DAV_METHODS = 'OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY';
+
+function getAllFiles(env: Env): Promise<FileMeta[]> {
+  return getAllIndexedFiles(env, true);
+}
 
 function parseDavPath(request: Request): string {
   const url = new URL(request.url);
@@ -29,23 +34,6 @@ function toFileName(davPath: string): string {
 
 function toR2Key(folder: string, name: string): string {
   return folder === 'root' ? name : folder + '/' + name;
-}
-
-async function getAllFiles(env: Env): Promise<FileMeta[]> {
-  const files: FileMeta[] = [];
-  let cursor: string | undefined;
-  for (;;) {
-    const result = await env.VAULT_KV.list({ prefix: KV_PREFIX.FILE, limit: 1000, cursor });
-    for (const key of result.keys) {
-      const raw = await env.VAULT_KV.get(key.name);
-      if (raw) {
-        try { files.push(JSON.parse(raw)); } catch { /* skip */ }
-      }
-    }
-    if (result.list_complete) break;
-    cursor = result.cursor;
-  }
-  return files;
 }
 
 async function getAllFolders(env: Env): Promise<Map<string, string>> {
@@ -294,9 +282,19 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
   const file = allFiles.find(f => f.folder === folder && f.name === name) || null;
 
   const r2Key = file ? file.key : toR2Key(folder, name);
+  const head = await env.VAULT_BUCKET.head(r2Key);
+  if (!head) return new Response('Not Found', { status: 404 });
+  const rangeHeader = request.headers.get('Range');
+  const range = rangeHeader ? parseSingleRange(rangeHeader, head.size) : null;
+  if (rangeHeader && !range) {
+    return new Response('Range Not Satisfiable', {
+      status: 416,
+      headers: { 'Content-Range': `bytes */${head.size}` },
+    });
+  }
   const object = await env.VAULT_BUCKET.get(r2Key, {
     onlyIf: request.headers,
-    range: request.headers,
+    range: range ?? undefined,
   });
   if (!object) return new Response('Not Found', { status: 404 });
 
@@ -306,9 +304,13 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
 
   const headers = new Headers();
   object.writeHttpMetadata(headers);
-  headers.set('Content-Length', String(object.size));
+  headers.set('Content-Length', String(range?.length ?? object.size));
+  headers.set('Accept-Ranges', 'bytes');
+  if (range) {
+    headers.set('Content-Range', `bytes ${range.offset}-${range.offset + range.length - 1}/${head.size}`);
+  }
   if (file) {
-    headers.set('etag', '"' + file.id + '"');
+    headers.set('etag', object.httpEtag);
     if (!headers.has('Content-Type')) {
       headers.set('Content-Type', file.type || getMimeType(file.name));
     }
@@ -316,7 +318,7 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
     headers.set('Content-Type', getMimeType(name));
   }
 
-  return new Response(object.body, { headers });
+  return new Response(object.body, { status: range ? 206 : 200, headers });
 }
 
 async function handleHead(request: Request, env: Env): Promise<Response> {
@@ -329,12 +331,14 @@ async function handleHead(request: Request, env: Env): Promise<Response> {
     const name = toFileName(davPath);
     const file = allFiles.find(f => f.folder === folder && f.name === name) || null;
     if (file) {
+      const r2Head = await env.VAULT_BUCKET.head(file.key);
+      if (!r2Head) return new Response('Not Found', { status: 404 });
       return new Response(null, {
         status: 200,
         headers: {
           'Content-Type': file.type || getMimeType(file.name),
           'Content-Length': String(file.size),
-          ETag: '"' + file.id + '"',
+          ETag: r2Head.httpEtag,
           'Last-Modified': new Date(file.uploadedAt).toUTCString(),
         },
       });
@@ -377,11 +381,10 @@ async function handlePut(request: Request, env: Env): Promise<Response> {
   const existingFile = await findFileByDavPath(env, davPath);
 
   if (existingFile) {
-    await env.VAULT_BUCKET.delete(existingFile.key);
     const r2Object = await env.VAULT_BUCKET.put(key, request.body, {
       httpMetadata: {
         contentType,
-        contentDisposition: 'attachment; filename="' + fileName + '"',
+        contentDisposition: contentDisposition('attachment', fileName),
       },
       customMetadata: { fileId: existingFile.id },
     });
@@ -406,7 +409,7 @@ async function handlePut(request: Request, env: Env): Promise<Response> {
   const r2Object = await env.VAULT_BUCKET.put(key, request.body, {
     httpMetadata: {
       contentType,
-      contentDisposition: 'attachment; filename="' + fileName + '"',
+      contentDisposition: contentDisposition('attachment', fileName),
     },
     customMetadata: { fileId: id },
   });
@@ -527,6 +530,7 @@ async function handleMove(request: Request, env: Env): Promise<Response> {
 
   const destination = parseDestination(request);
   if (!destination) return new Response('Bad Request', { status: 400 });
+  if (destination === davPath) return new Response(null, { status: 204 });
 
   const overwrite = request.headers.get('Overwrite') !== 'F';
 
@@ -534,13 +538,6 @@ async function handleMove(request: Request, env: Env): Promise<Response> {
   if (file) {
     const destFile = await findFileByDavPath(env, destination);
     if (destFile && !overwrite) return new Response('Precondition Failed', { status: 412 });
-
-    if (destFile) {
-      await env.VAULT_BUCKET.delete(destFile.key);
-      await env.VAULT_KV.delete(KV_PREFIX.FILE + destFile.id);
-      if (destFile.shareToken) await env.VAULT_KV.delete(KV_PREFIX.SHARE + destFile.shareToken);
-      await updateStatsCounters(env, -destFile.size, -1);
-    }
 
     const newFolder = toFolder(destination);
     const newName = toFileName(destination);
@@ -552,9 +549,14 @@ async function handleMove(request: Request, env: Env): Promise<Response> {
     if (!object) return new Response('Not Found', { status: 404 });
 
     await env.VAULT_BUCKET.put(newKey, object.body, {
-      httpMetadata: object.httpMetadata,
-      customMetadata: object.customMetadata,
+      httpMetadata: { ...object.httpMetadata, contentDisposition: contentDisposition('attachment', newName) },
+      customMetadata: { ...object.customMetadata, fileId: file.id },
     });
+    if (destFile) {
+      await env.VAULT_KV.delete(KV_PREFIX.FILE + destFile.id);
+      if (destFile.shareToken) await env.VAULT_KV.delete(KV_PREFIX.SHARE + destFile.shareToken);
+      await updateStatsCounters(env, -destFile.size, -1);
+    }
     await env.VAULT_BUCKET.delete(file.key);
 
     file.key = newKey;
@@ -574,6 +576,7 @@ async function handleCopy(request: Request, env: Env): Promise<Response> {
 
   const destination = parseDestination(request);
   if (!destination) return new Response('Bad Request', { status: 400 });
+  if (destination === davPath) return new Response(null, { status: 204 });
 
   const overwrite = request.headers.get('Overwrite') !== 'F';
 
@@ -582,13 +585,6 @@ async function handleCopy(request: Request, env: Env): Promise<Response> {
 
   const destFile = await findFileByDavPath(env, destination);
   if (destFile && !overwrite) return new Response('Precondition Failed', { status: 412 });
-
-  if (destFile) {
-    await env.VAULT_BUCKET.delete(destFile.key);
-    await env.VAULT_KV.delete(KV_PREFIX.FILE + destFile.id);
-    if (destFile.shareToken) await env.VAULT_KV.delete(KV_PREFIX.SHARE + destFile.shareToken);
-    await updateStatsCounters(env, -destFile.size, -1);
-  }
 
   const newFolder = toFolder(destination);
   const newName = toFileName(destination);
@@ -601,9 +597,14 @@ async function handleCopy(request: Request, env: Env): Promise<Response> {
   if (!object) return new Response('Not Found', { status: 404 });
 
   await env.VAULT_BUCKET.put(newKey, object.body, {
-    httpMetadata: object.httpMetadata,
+    httpMetadata: { ...object.httpMetadata, contentDisposition: contentDisposition('attachment', newName) },
     customMetadata: { fileId: newId },
   });
+  if (destFile) {
+    await env.VAULT_KV.delete(KV_PREFIX.FILE + destFile.id);
+    if (destFile.shareToken) await env.VAULT_KV.delete(KV_PREFIX.SHARE + destFile.shareToken);
+    await updateStatsCounters(env, -destFile.size, -1);
+  }
 
   const meta: FileMeta = {
     id: newId,

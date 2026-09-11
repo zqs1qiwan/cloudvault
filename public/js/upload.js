@@ -6,9 +6,14 @@ window.UploadManager = {
 
   addFiles(files, folder) {
     for (const file of files) {
-      this.queue.push({ file, folder, status: 'pending', progress: 0 });
+      this.queue.push({ id: crypto.randomUUID(), file, folder, status: 'pending', progress: 0 });
     }
     this.processQueue();
+  },
+
+  clearCompleted() {
+    this.queue = this.queue.filter(q => q.status === 'pending' || q.status === 'uploading');
+    window.dispatchEvent(new CustomEvent('upload-progress'));
   },
 
   processQueue() {
@@ -58,10 +63,15 @@ window.UploadManager = {
       };
 
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
-        else reject(new Error(xhr.responseText || 'Upload failed'));
+        if (xhr.status === 401) { window.location.href = '/login'; reject(new Error('Session expired')); return; }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); }
+          catch { reject(new Error('Invalid upload response')); }
+        } else reject(new Error(xhr.responseText || 'Upload failed'));
       };
       xhr.onerror = () => reject(new Error('Network error'));
+      xhr.timeout = 10 * 60 * 1000;
+      xhr.ontimeout = () => reject(new Error('Upload timed out'));
       xhr.send(item.file);
     });
   },
@@ -79,6 +89,7 @@ window.UploadManager = {
       },
       credentials: 'same-origin',
     });
+    if (createRes.status === 401) { window.location.href = '/login'; throw new Error('Session expired'); }
     if (!createRes.ok) throw new Error('Failed to create multipart upload');
     const { uploadId, key } = await createRes.json();
 
@@ -140,12 +151,14 @@ function readEntry(entry, path, files) {
       });
     } else if (entry.isDirectory) {
       const reader = entry.createReader();
-      reader.readEntries(async (entries) => {
+      const readBatch = () => reader.readEntries(async (entries) => {
+        if (entries.length === 0) { resolve(); return; }
         for (const e of entries) {
           await readEntry(e, path ? path + '/' + entry.name : entry.name, files);
         }
-        resolve();
+        readBatch();
       });
+      readBatch();
     } else {
       resolve();
     }

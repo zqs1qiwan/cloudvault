@@ -64,8 +64,17 @@ export async function fetchAssetHtml(assets: Fetcher, requestUrl: string, assetP
 }
 
 export function injectBranding(html: string, branding: { siteName: string; siteIconUrl: string }): string {
-  const tag = `<script id="branding-data" type="application/json">${JSON.stringify(branding)}</script>`;
-  const favicon = branding.siteIconUrl ? `<link rel="icon" type="image/png" href="${branding.siteIconUrl}">` : '';
+  const safeJson = JSON.stringify(branding).replace(/[<>&]/g, (char) => ({ '<': '\\u003c', '>': '\\u003e', '&': '\\u0026' })[char]!);
+  const tag = `<script id="branding-data" type="application/json">${safeJson}</script>`;
+  let favicon = '';
+  try {
+    const iconUrl = new URL(branding.siteIconUrl);
+    if (iconUrl.protocol === 'https:' || iconUrl.protocol === 'http:') {
+      favicon = `<link rel="icon" type="image/png" href="${iconUrl.toString().replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">`;
+    }
+  } catch {
+    // Empty and invalid icon URLs use the default icon.
+  }
   return html.replace('</head>', favicon + tag + '</head>');
 }
 

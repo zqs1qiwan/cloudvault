@@ -1,17 +1,21 @@
 {
   "name": "cloudvault",
-  "version": "1.0.0",
+  "version": "1.10.0",
   "license": "MIT",
   "description": "Personal cloud storage platform on Cloudflare Workers + R2",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test",
     "types": "wrangler types",
     "tail": "wrangler tail"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260101.0",
-    "typescript": "^5.7.0",
-    "wrangler": "^4.0.0"
+    "@types/node": "^22.20.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0",
+    "wrangler": "^4.131.0"
   }
 }

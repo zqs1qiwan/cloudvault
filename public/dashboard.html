@@ -26,7 +26,6 @@
         }
       }
     }
-    }
   </script>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1/themes/prism-tomorrow.min.css">
@@ -34,7 +33,7 @@
 <body class="min-h-screen" style="font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary)">
 <div class="glow-orbs"></div>
 
-<div x-data="cloudvault()" x-init="init()" @keydown.window="handleKeyboard($event)">
+<div x-data="cloudvault()" @keydown.window="handleKeyboard($event)">
 
   <!-- HEADER -->
   <header class="sticky top-0 z-50 border-b" style="background:var(--bg-secondary);border-color:var(--border)">
@@ -128,7 +127,7 @@
             </button>
             <div x-show="open" @click.away="open = false" x-transition class="type-dropdown">
               <template x-for="opt in [{v:'all',l:'All Types'},{v:'images',l:'Images'},{v:'videos',l:'Videos'},{v:'audio',l:'Audio'},{v:'documents',l:'Documents'},{v:'archives',l:'Archives'},{v:'code',l:'Code'},{v:'other',l:'Other'}]">
-                <button @click="typeFilter = opt.v; open = false" class="type-dropdown-item" :class="{'active': typeFilter === opt.v}">
+                <button @click="typeFilter = opt.v; clearSelection(); open = false" class="type-dropdown-item" :class="{'active': typeFilter === opt.v}">
                   <span class="type-dot" :class="'type-' + opt.v"></span>
                   <span x-text="opt.l"></span>
                 </button>
@@ -147,7 +146,7 @@
             <input type="file" multiple class="hidden" @change="handleFileSelect($event)">
           </label>
 
-          <button @click="view = view === 'grid' ? 'list' : 'grid'" class="p-1.5 rounded-lg" style="color:var(--text-muted);background:var(--bg-tertiary)">
+          <button @click="toggleView()" class="p-1.5 rounded-lg" style="color:var(--text-muted);background:var(--bg-tertiary)">
             <svg x-show="view === 'grid'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/></svg>
             <svg x-show="view === 'list'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
           </button>
@@ -268,7 +267,7 @@
   </div>
 
   <!-- CONTEXT MENU -->
-  <div x-show="ctxMenu.show" x-transition @click.away="ctxMenu.show = false" class="ctx-menu" :style="'top:'+ctxMenu.y+'px;left:'+ctxMenu.x+'px'">
+  <div x-cloak x-show="ctxMenu.show" x-transition @click.away="ctxMenu.show = false" class="ctx-menu" :style="'top:'+ctxMenu.y+'px;left:'+ctxMenu.x+'px'">
     <button @click="shareFile(ctxMenu.file)"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.03a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L5.25 9.12"/></svg> Share</button>
     <button @click="downloadFile(ctxMenu.file)"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg> Download</button>
     <button @click="showMoveModal(ctxMenu.file)"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776"/></svg> Move to...</button>
@@ -544,7 +543,7 @@
   </div>
 
   <!-- PREVIEW MODAL -->
-  <div x-show="previewModal.show" x-transition.opacity class="preview-backdrop" @click.self="previewModal.show = false" @keydown.escape.window="previewModal.show = false">
+  <div x-cloak x-show="previewModal.show" x-transition.opacity class="preview-backdrop" @click.self="closePreview()" @keydown.escape.window="closePreview()">
     <div class="preview-panel" @click.stop>
       <div class="preview-header">
         <div class="flex items-center gap-2 min-w-0">
@@ -554,7 +553,7 @@
         </div>
         <div class="flex items-center gap-2">
           <button @click="downloadFile(previewModal.file)" class="btn-secondary text-xs">Download</button>
-          <button @click="previewModal.show = false" class="p-1.5 rounded-lg hover:bg-gray-700">
+          <button @click="closePreview()" class="p-1.5 rounded-lg hover:bg-gray-700">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -595,10 +594,10 @@
   <div x-show="uploads.length > 0" class="upload-panel">
     <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color:var(--border)">
       <span class="text-sm font-medium" x-text="'Uploading ' + uploads.filter(u => u.status === 'uploading').length + ' / ' + uploads.length"></span>
-      <button @click="uploads = uploads.filter(u => u.status === 'uploading')" class="text-xs" style="color:var(--text-muted)">Clear done</button>
+       <button @click="clearCompletedUploads()" class="text-xs" style="color:var(--text-muted)">Clear done</button>
     </div>
     <div class="max-h-48 overflow-y-auto">
-      <template x-for="(upload, i) in uploads" :key="i">
+      <template x-for="upload in uploads" :key="upload.id">
         <div class="upload-item">
           <div class="flex-1 min-w-0">
             <p class="text-xs font-medium truncate" x-text="upload.name"></p>
@@ -614,6 +613,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1/prism.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1/plugins/autoloader/prism-autoloader.min.js"></script>
 <script src="/js/upload.js"></script>

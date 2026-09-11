@@ -40,6 +40,7 @@ function cloudvault() {
         document.documentElement.classList.remove('dark');
         document.documentElement.classList.add('light');
       }
+      document.title = this._branding.siteName || 'CloudVault';
 
       this.setupDragDrop();
       this.setupUploadEvents();
@@ -72,19 +73,19 @@ function cloudvault() {
     setupUploadEvents() {
       window.addEventListener('upload-progress', () => {
         this.uploads = [...window.UploadManager.queue.map(q => ({
-          name: q.file.name, progress: q.progress, status: q.status
+          id: q.id, name: q.file.name, progress: q.progress, status: q.status
         }))];
       });
       window.addEventListener('upload-complete', async (e) => {
         this.uploads = [...window.UploadManager.queue.map(q => ({
-          name: q.file.name, progress: q.progress, status: q.status
+          id: q.id, name: q.file.name, progress: q.progress, status: q.status
         }))];
         this.showToast(e.detail.name + ' uploaded', 'success');
         await Promise.all([this.fetchFiles(), this.fetchStats(), this.fetchFolders()]);
       });
       window.addEventListener('upload-error', (e) => {
         this.uploads = [...window.UploadManager.queue.map(q => ({
-          name: q.file.name, progress: q.progress, status: q.status
+          id: q.id, name: q.file.name, progress: q.progress, status: q.status
         }))];
         this.showToast('Failed to upload ' + e.detail.name, 'error');
       });
@@ -375,6 +376,7 @@ function cloudvault() {
           const data = await res.json();
           this.showToast(data.moved + ' file(s) moved', 'success');
           await Promise.all([this.fetchFiles(), this.fetchFolders()]);
+          this.clearSelection();
         } else { this.showToast('Move failed', 'error'); }
       } catch { this.showToast('Move failed', 'error'); }
     },
@@ -386,13 +388,19 @@ function cloudvault() {
     },
 
     async fetchFiles() {
+      const requestId = (this._fileRequestId || 0) + 1;
+      this._fileRequestId = requestId;
+      const folder = this.currentFolder;
       const params = new URLSearchParams();
-      if (this.currentFolder !== 'root') params.set('folder', this.currentFolder);
+      params.set('folder', folder);
       if (this.searchQuery) params.set('search', this.searchQuery);
       const res = await this.apiFetch('/api/files?' + params);
-      if (!res) return;
+      if (!res || !res.ok) { if (requestId === this._fileRequestId) this.showToast('Failed to load files', 'error'); return; }
       const data = await res.json();
+      if (requestId !== this._fileRequestId || folder !== this.currentFolder) return;
       this.files = data.files || [];
+      const visibleIds = new Set(this.files.map(file => file.id));
+      this.selectedFiles = new Set([...this.selectedFiles].filter(id => visibleIds.has(id)));
     },
 
     async fetchFolders() {
@@ -456,12 +464,18 @@ function cloudvault() {
       else { this.sortBy = field; this.sortDir = field === 'name' ? 'asc' : 'desc'; }
     },
 
+    toggleView() {
+      this.view = this.view === 'grid' ? 'list' : 'grid';
+      localStorage.setItem('cv-view', this.view);
+    },
+
     selectFile(id, event) {
       if (event.shiftKey && this.selectedFiles.size > 0) {
         const ids = this.filteredFiles.map(f => f.id);
         const lastSelected = [...this.selectedFiles].pop();
         const from = ids.indexOf(lastSelected);
         const to = ids.indexOf(id);
+        if (from < 0 || to < 0) { this.toggleSelect(id); return; }
         const [start, end] = from < to ? [from, to] : [to, from];
         for (let i = start; i <= end; i++) this.selectedFiles.add(ids[i]);
         this.selectedFiles = new Set(this.selectedFiles);
@@ -530,7 +544,8 @@ function cloudvault() {
           body: JSON.stringify({ name: newName.trim() }),
         });
         if (res && res.ok) {
-          file.name = newName.trim();
+          const updated = await res.json();
+          Object.assign(file, updated);
           this.showToast('File renamed', 'success');
         } else { this.showToast('Rename failed', 'error'); }
       } catch { this.showToast('Rename failed', 'error'); }
@@ -663,11 +678,7 @@ function cloudvault() {
 
     downloadFile(file) {
       this.ctxMenu.show = false;
-      if (file.shareToken) {
-        window.open('/s/' + file.shareToken + '/download', '_blank');
-      } else {
-        window.open('/api/files/' + file.id + '/download', '_blank');
-      }
+      window.open('/api/files/' + file.id + '/download', '_blank');
     },
 
     async previewFile(file) {
@@ -677,6 +688,8 @@ function cloudvault() {
       }
 
       this.previewModal = { show: true, file, content: '', loading: true };
+      const requestId = (this._previewRequestId || 0) + 1;
+      this._previewRequestId = requestId;
       const previewUrl = '/api/files/' + file.id + '/preview';
 
       try {
@@ -692,11 +705,14 @@ function cloudvault() {
         } else if (file.type.startsWith('text/') || file.type.includes('javascript') || file.type.includes('json') || file.type.includes('xml') ||
                    file.name.match(/\.(js|ts|py|rb|go|rs|java|c|cpp|h|sh|yaml|yml|json|toml|md|html|css|sql|swift|kt|php|lua|tsx|jsx)$/i)) {
           const res = await this.apiFetch(previewUrl);
-          if (!res) return;
+          if (!res || !res.ok) throw new Error('Preview failed');
           const text = await res.text();
+          if (requestId !== this._previewRequestId) return;
 
           if (file.name.endsWith('.md')) {
-            this.previewModal.content = '<div class="preview-markdown">' + (typeof marked !== 'undefined' ? marked.parse(text) : '<pre>' + this._escHtml(text) + '</pre>') + '</div>';
+            const rendered = typeof marked !== 'undefined' ? marked.parse(text) : '<pre>' + this._escHtml(text) + '</pre>';
+            const safe = typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(rendered) : '<pre>' + this._escHtml(text) + '</pre>';
+            this.previewModal.content = '<div class="preview-markdown">' + safe + '</div>';
           } else {
             const ext = file.name.split('.').pop().toLowerCase();
             const langMap = {js:'javascript',ts:'typescript',py:'python',rb:'ruby',rs:'rust',sh:'bash',yml:'yaml',md:'markdown',jsx:'jsx',tsx:'tsx'};
@@ -713,9 +729,21 @@ function cloudvault() {
           this.previewModal.loading = false;
         }
       } catch (e) {
+        if (requestId !== this._previewRequestId) return;
         this.previewModal.content = '<div class="preview-unsupported"><p class="text-sm" style="color:var(--danger)">Failed to load preview</p></div>';
         this.previewModal.loading = false;
       }
+    },
+
+    closePreview() {
+      this._previewRequestId = (this._previewRequestId || 0) + 1;
+      document.querySelectorAll('.preview-panel audio, .preview-panel video').forEach(media => {
+        media.pause();
+        media.removeAttribute('src');
+        media.querySelectorAll('source').forEach(source => source.removeAttribute('src'));
+        media.load();
+      });
+      this.previewModal = { show: false, file: null, content: '', loading: false };
     },
 
     openLightbox(file) {
@@ -771,7 +799,7 @@ function cloudvault() {
       if (files.length) {
         window.UploadManager.addFiles(files, this.currentFolder);
         this.uploads = [...window.UploadManager.queue.map(q => ({
-          name: q.file.name, progress: q.progress, status: q.status
+          id: q.id, name: q.file.name, progress: q.progress, status: q.status
         }))];
       }
       event.target.value = '';
@@ -785,7 +813,7 @@ function cloudvault() {
       const byFolder = {};
       for (const { file, relativePath } of entries) {
         const folder = relativePath
-          ? (this.currentFolder === 'root' ? relativePath.split('/')[0] : this.currentFolder + '/' + relativePath.split('/')[0])
+          ? (this.currentFolder === 'root' ? relativePath : this.currentFolder + '/' + relativePath)
           : this.currentFolder;
         if (!byFolder[folder]) byFolder[folder] = [];
         byFolder[folder].push(file);
@@ -794,7 +822,7 @@ function cloudvault() {
         window.UploadManager.addFiles(files, folder);
       }
       this.uploads = [...window.UploadManager.queue.map(q => ({
-        name: q.file.name, progress: q.progress, status: q.status
+        id: q.id, name: q.file.name, progress: q.progress, status: q.status
       }))];
     },
 
@@ -803,6 +831,13 @@ function cloudvault() {
       document.documentElement.classList.toggle('dark', this.darkMode);
       document.documentElement.classList.toggle('light', !this.darkMode);
       localStorage.setItem('cv-dark', this.darkMode);
+    },
+
+    clearCompletedUploads() {
+      window.UploadManager.clearCompleted();
+      this.uploads = [...window.UploadManager.queue.map(q => ({
+        id: q.id, name: q.file.name, progress: q.progress, status: q.status
+      }))];
     },
 
     async loadSettings() {
@@ -870,7 +905,7 @@ function cloudvault() {
         this.deleteModal.show = false;
         this.moveModal.show = false;
         this.showNewFolderModal = false;
-        this.previewModal.show = false;
+        this.closePreview();
         this.lightbox.show = false;
         this.renameFolderModal.show = false;
         this.deleteFolderModal.show = false;
@@ -883,7 +918,11 @@ function cloudvault() {
       const toast = document.createElement('div');
       toast.className = 'toast ' + type;
       const icons = { success: '\u2713', error: '\u2717', info: '\u24D8' };
-      toast.innerHTML = '<span>' + (icons[type] || '') + '</span><span>' + message + '</span>';
+      const icon = document.createElement('span');
+      icon.textContent = icons[type] || '';
+      const text = document.createElement('span');
+      text.textContent = String(message);
+      toast.append(icon, text);
       container.appendChild(toast);
       setTimeout(() => {
         toast.classList.add('removing');

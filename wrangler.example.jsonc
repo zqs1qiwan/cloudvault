@@ -2,7 +2,7 @@
   "name": "cloudvault",
   // "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
   "main": "src/index.ts",
-  "compatibility_date": "2026-02-18",
+  "compatibility_date": "2026-09-11",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./public",

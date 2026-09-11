@@ -26,7 +26,6 @@
         }
       }
     }
-    }
   </script>
   <link rel="stylesheet" href="/css/app.css">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
@@ -51,7 +50,7 @@
 <body class="min-h-screen flex flex-col" style="font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary)">
 <div class="glow-orbs"></div>
 
-<div x-data="guestPage()" x-init="init()">
+<div x-data="guestPage()">
 
   <!-- HEADER -->
   <header class="border-b px-4 py-3" style="background:var(--bg-secondary);border-color:var(--border)">
@@ -254,7 +253,10 @@ function guestPage() {
         var d = document.getElementById('branding-data');
         if (!d) return;
         var b = JSON.parse(d.textContent || '{}');
-        if (b.siteName) this.branding.siteName = b.siteName;
+        if (b.siteName) {
+          this.branding.siteName = b.siteName;
+          document.title = b.siteName + ' - Shared Files';
+        }
         if (b.siteIconUrl) this.branding.siteIconUrl = b.siteIconUrl;
       } catch(e) {}
     },
@@ -275,22 +277,26 @@ function guestPage() {
 
     loadView() {
       var self = this;
+      var requestId = (self._requestId || 0) + 1;
+      self._requestId = requestId;
       self.loading = true; self.folders = []; self.allFiles = [];
       if (!self.currentPath) {
         fetch('/api/public/shared').then(function(r) { return r.json(); }).then(function(data) {
+          if (requestId !== self._requestId) return;
           self.loading = false;
           if (data.settings && data.settings.showLoginButton) self.showLogin = true;
           self.folders = data.sharedFolders || [];
           self.allFiles = data.files || [];
-        }).catch(function() { self.loading = false; });
+        }).catch(function() { if (requestId === self._requestId) self.loading = false; });
       } else {
         fetch('/api/public/folder?path=' + encodeURIComponent(self.currentPath)).then(function(r) {
           if (!r.ok) throw new Error(); return r.json();
         }).then(function(data) {
+          if (requestId !== self._requestId) return;
           self.loading = false;
           self.folders = data.subfolders || [];
           self.allFiles = data.files || [];
-        }).catch(function() { self.loading = false; });
+        }).catch(function() { if (requestId === self._requestId) self.loading = false; });
       }
     },
 
@@ -300,7 +306,9 @@ function guestPage() {
     },
 
     getDownloadUrl(file) {
-      return file.token ? '/s/' + file.token : '/' + encodeURI(file.folder + '/' + file.name);
+      return file.token
+        ? '/s/' + file.token + '/download'
+        : '/' + (file.folder + '/' + file.name).split('/').map(encodeURIComponent).join('/');
     },
 
     copyLink(file) {
