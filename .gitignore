@@ -5,3 +5,6 @@ dist/
 *.log
 .DS_Store
 wrangler.jsonc
+# Local-only internal docs (never push to public repo)
+AGENTS.md
+docs/agent-notes/
