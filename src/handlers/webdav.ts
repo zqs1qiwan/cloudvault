@@ -1,6 +1,6 @@
 import { Env, FileMeta, KV_PREFIX } from '../utils/types';
 import { getMimeType } from '../utils/response';
-import { contentDisposition, getIndexedFiles, parseSingleRange } from '../utils/files';
+import { contentDisposition, getIndexedFiles, parseSingleRange, stableObjectId } from '../utils/files';
 import {
   multistatusResponse,
   propstatEntry,
@@ -8,6 +8,7 @@ import {
   fileToHref,
   folderToProps,
   folderToHref,
+  fileEtag,
 } from '../utils/webdav-xml';
 
 const DAV_PREFIX = '/dav/';
@@ -76,6 +77,111 @@ async function findFileByDavPath(env: Env, davPath: string): Promise<FileMeta | 
   return allFiles.find(f => f.folder === folder && f.name === name) || null;
 }
 
+/**
+ * Resolve a path to its metadata, falling back to the R2 object when the KV
+ * index has not caught up yet.
+ *
+ * Every path lookup used to go through a KV list, which is only eventually
+ * consistent: a client that PUT a file and immediately MOVEd it in the same
+ * second got 404 from a colo that had not seen the row yet. R2 is strongly
+ * consistent and carries the owning row id in `customMetadata.fileId`, so the
+ * object itself can stand in until the index arrives.
+ */
+async function resolveFileByDavPath(env: Env, davPath: string): Promise<FileMeta | null> {
+  const found = await findFileByDavPath(env, davPath);
+  if (found) return found;
+
+  const folder = toFolder(davPath);
+  const name = toFileName(davPath);
+  const key = toR2Key(folder, name);
+  const head = await env.VAULT_BUCKET.head(key);
+  if (!head) return null;
+
+  const objectId = head.customMetadata?.fileId;
+  if (objectId) {
+    const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + objectId);
+    if (raw) {
+      try {
+        const meta = JSON.parse(raw) as FileMeta;
+        if (meta.key === key) return meta;
+      } catch { /* corrupt row: synthesize from the object instead */ }
+    }
+  }
+
+  return {
+    id: objectId || stableObjectId(key),
+    key,
+    name,
+    folder,
+    size: head.size,
+    type: head.httpMetadata?.contentType || getMimeType(name),
+    uploadedAt: head.uploaded.toISOString(),
+    shareToken: null,
+    sharePassword: null,
+    shareExpiresAt: null,
+    downloads: 0,
+  };
+}
+
+/** Split an `If-Match` / `If-None-Match` list into comparable tags (weak prefix dropped). */
+function parseEntityTags(header: string): string[] {
+  return header
+    .split(',')
+    .map((value) => value.trim().replace(/^W\//, ''))
+    .filter((value) => value.length > 0);
+}
+
+/**
+ * Evaluate the request's preconditions against the resource's published ETag.
+ *
+ * Returns the response to send when a precondition fails, else null. Per RFC
+ * 9110 a failed `If-None-Match` on GET/HEAD is 304 Not Modified, and only other
+ * methods get 412 - the old code answered 412 for every method, which made
+ * ETag-validating sync clients treat an unchanged file as an error.
+ */
+function evaluatePreconditions(request: Request, etag: string, lastModified: Date | null): Response | null {
+  const validators: Record<string, string> = { ETag: etag };
+  if (lastModified && Number.isFinite(lastModified.getTime())) {
+    validators['Last-Modified'] = lastModified.toUTCString();
+  }
+
+  const ifMatch = request.headers.get('If-Match');
+  if (ifMatch) {
+    const tags = parseEntityTags(ifMatch);
+    if (!tags.includes('*') && !tags.includes(etag)) {
+      return new Response('Preconditions failed', { status: 412 });
+    }
+  } else {
+    const ifUnmodifiedSince = request.headers.get('If-Unmodified-Since');
+    const since = ifUnmodifiedSince ? Date.parse(ifUnmodifiedSince) : NaN;
+    if (Number.isFinite(since) && lastModified && lastModified.getTime() > since) {
+      return new Response('Preconditions failed', { status: 412 });
+    }
+  }
+
+  const isReadMethod = request.method === 'GET' || request.method === 'HEAD';
+
+  const ifNoneMatch = request.headers.get('If-None-Match');
+  if (ifNoneMatch) {
+    const tags = parseEntityTags(ifNoneMatch);
+    if (tags.includes('*') || tags.includes(etag)) {
+      return isReadMethod
+        ? new Response(null, { status: 304, headers: validators })
+        : new Response('Preconditions failed', { status: 412 });
+    }
+  } else {
+    const ifModifiedSince = request.headers.get('If-Modified-Since');
+    const since = ifModifiedSince ? Date.parse(ifModifiedSince) : NaN;
+    if (Number.isFinite(since) && lastModified && Math.floor(lastModified.getTime() / 1000) <= Math.floor(since / 1000)) {
+      return isReadMethod
+        ? new Response(null, { status: 304, headers: validators })
+        : null;
+    }
+  }
+
+  return null;
+}
+
 export async function handleWebDav(request: Request, env: Env): Promise<Response> {
   const method = request.method;
 
@@ -116,7 +222,7 @@ async function handlePropfind(request: Request, env: Env): Promise<Response> {
     return propfindRoot(env, depth);
   }
 
-  const file = await findFileByDavPath(env, davPath);
+  const file = await resolveFileByDavPath(env, davPath);
   if (file) {
     return multistatusResponse([
       propstatEntry(fileToHref(file), fileToProps(file), false),
@@ -284,6 +390,13 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
   const r2Key = file ? file.key : toR2Key(folder, name);
   const head = await env.VAULT_BUCKET.head(r2Key);
   if (!head) return new Response('Not Found', { status: 404 });
+
+  const etag = file ? fileEtag(file) : head.httpEtag;
+  const lastModified = file ? new Date(file.uploadedAt) : head.uploaded;
+
+  const precondition = evaluatePreconditions(request, etag, lastModified);
+  if (precondition) return precondition;
+
   const rangeHeader = request.headers.get('Range');
   const range = rangeHeader ? parseSingleRange(rangeHeader, head.size) : null;
   if (rangeHeader && !range) {
@@ -292,15 +405,13 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
       headers: { 'Content-Range': `bytes */${head.size}` },
     });
   }
+  // No `onlyIf`: R2 compares conditionals against its own MD5 ETag, which is a
+  // different namespace from the ETag published to clients. The checks above
+  // compare like with like, so the object is fetched unconditionally here.
   const object = await env.VAULT_BUCKET.get(r2Key, {
-    onlyIf: request.headers,
     range: range ?? undefined,
   });
   if (!object) return new Response('Not Found', { status: 404 });
-
-  if (!('body' in object)) {
-    return new Response('Preconditions failed', { status: 412 });
-  }
 
   const headers = new Headers();
   object.writeHttpMetadata(headers);
@@ -309,8 +420,11 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
   if (range) {
     headers.set('Content-Range', `bytes ${range.offset}-${range.offset + range.length - 1}/${head.size}`);
   }
+  headers.set('ETag', etag);
+  if (lastModified && Number.isFinite(lastModified.getTime())) {
+    headers.set('Last-Modified', lastModified.toUTCString());
+  }
   if (file) {
-    headers.set('etag', object.httpEtag);
     if (!headers.has('Content-Type')) {
       headers.set('Content-Type', file.type || getMimeType(file.name));
     }
@@ -330,31 +444,26 @@ async function handleHead(request: Request, env: Env): Promise<Response> {
     const folder = toFolder(davPath);
     const name = toFileName(davPath);
     const file = allFiles.find(f => f.folder === folder && f.name === name) || null;
-    if (file) {
-      const r2Head = await env.VAULT_BUCKET.head(file.key);
-      if (!r2Head) return new Response('Not Found', { status: 404 });
-      return new Response(null, {
-        status: 200,
-        headers: {
-          'Content-Type': file.type || getMimeType(file.name),
-          'Content-Length': String(file.size),
-          ETag: r2Head.httpEtag,
-          'Last-Modified': new Date(file.uploadedAt).toUTCString(),
-        },
-      });
-    }
-
-    const r2Key = toR2Key(folder, name);
+    const r2Key = file ? file.key : toR2Key(folder, name);
     const r2Head = await env.VAULT_BUCKET.head(r2Key);
     if (r2Head) {
-      return new Response(null, {
-        status: 200,
-        headers: {
-          'Content-Type': r2Head.httpMetadata?.contentType || getMimeType(name),
-          'Content-Length': String(r2Head.size),
-          'Last-Modified': r2Head.uploaded.toUTCString(),
-        },
-      });
+      const etag = file ? fileEtag(file) : r2Head.httpEtag;
+      const lastModified = file ? new Date(file.uploadedAt) : r2Head.uploaded;
+
+      const precondition = evaluatePreconditions(request, etag, lastModified);
+      if (precondition) return precondition;
+
+      const headers: Record<string, string> = {
+        'Content-Type': file
+          ? file.type || getMimeType(file.name)
+          : r2Head.httpMetadata?.contentType || getMimeType(name),
+        'Content-Length': String(file ? file.size : r2Head.size),
+        ETag: etag,
+      };
+      if (Number.isFinite(lastModified.getTime())) {
+        headers['Last-Modified'] = lastModified.toUTCString();
+      }
+      return new Response(null, { status: 200, headers });
     }
   }
 
@@ -378,34 +487,16 @@ async function handlePut(request: Request, env: Env): Promise<Response> {
   const contentType = request.headers.get('Content-Type') || getMimeType(fileName);
   const key = toR2Key(folder, fileName);
 
-  const existingFile = await findFileByDavPath(env, davPath);
+  const [existingFile, existingHead] = await Promise.all([
+    findFileByDavPath(env, davPath),
+    env.VAULT_BUCKET.head(key),
+  ]);
 
-  if (existingFile) {
-    const r2Object = await env.VAULT_BUCKET.put(key, request.body, {
-      httpMetadata: {
-        contentType,
-        contentDisposition: contentDisposition('attachment', fileName),
-      },
-      customMetadata: { fileId: existingFile.id },
-    });
-    if (!r2Object) return new Response('Upload failed', { status: 500 });
-
-    const sizeDelta = r2Object.size - existingFile.size;
-    existingFile.key = key;
-    existingFile.size = r2Object.size;
-    existingFile.type = contentType;
-    existingFile.uploadedAt = new Date().toISOString();
-    await env.VAULT_KV.put(KV_PREFIX.FILE + existingFile.id, JSON.stringify(existingFile));
-    if (sizeDelta !== 0) await updateStatsCounters(env, sizeDelta, 0);
-
-    return new Response(null, { status: 204 });
-  }
-
-  if (folder !== 'root') {
+  if (folder !== 'root' && !existingFile && !existingHead) {
     await ensureFolderChain(env, folder);
   }
 
-  const id = crypto.randomUUID();
+  const id = existingFile?.id ?? await resolveUploadId(env, key, existingHead?.customMetadata?.fileId);
   const r2Object = await env.VAULT_BUCKET.put(key, request.body, {
     httpMetadata: {
       contentType,
@@ -415,6 +506,16 @@ async function handlePut(request: Request, env: Env): Promise<Response> {
   });
   if (!r2Object) return new Response('Upload failed', { status: 500 });
 
+  const created = !existingFile && !existingHead;
+  const previousSize = existingFile?.size ?? existingHead?.size ?? 0;
+  // ETags are derived from `uploadedAt`, so make sure an overwrite never reuses
+  // the previous millisecond: two fast PUTs would otherwise publish the same
+  // validator and sync clients would skip the newer body.
+  const previousStamp = existingFile ? Date.parse(existingFile.uploadedAt) : NaN;
+  const uploadedAt = new Date(
+    Number.isFinite(previousStamp) ? Math.max(Date.now(), previousStamp + 1) : Date.now(),
+  ).toISOString();
+
   const meta: FileMeta = {
     id,
     key,
@@ -422,17 +523,53 @@ async function handlePut(request: Request, env: Env): Promise<Response> {
     size: r2Object.size,
     type: contentType,
     folder,
-    uploadedAt: new Date().toISOString(),
-    shareToken: null,
-    sharePassword: null,
-    shareExpiresAt: null,
-    downloads: 0,
+    uploadedAt,
+    shareToken: existingFile?.shareToken ?? null,
+    sharePassword: existingFile?.sharePassword ?? null,
+    shareExpiresAt: existingFile?.shareExpiresAt ?? null,
+    downloads: existingFile?.downloads ?? 0,
   };
 
   await env.VAULT_KV.put(KV_PREFIX.FILE + id, JSON.stringify(meta));
-  await updateStatsCounters(env, meta.size, 1);
 
-  return new Response(null, { status: 201 });
+  const sizeDelta = meta.size - previousSize;
+  if (created || sizeDelta !== 0) {
+    await updateStatsCounters(env, sizeDelta, created ? 1 : 0);
+  }
+
+  return new Response(null, { status: created ? 201 : 204 });
+}
+
+/**
+ * Pick the metadata row a PUT should write.
+ *
+ * KV is only eventually consistent, so `findFileByDavPath` can miss a row that
+ * was written moments ago in another colo and the old code answered with a
+ * brand-new `randomUUID()` - leaving two rows for one path and two different
+ * ETags. The R2 object is strongly consistent and carries the owning row's id
+ * in `customMetadata.fileId`, so follow that first; otherwise derive the id
+ * from the object key. Deriving instead of randomising keeps concurrent PUTs
+ * for one path on a single row.
+ */
+async function resolveUploadId(env: Env, key: string, objectFileId?: string): Promise<string> {
+  if (objectFileId) {
+    const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + objectFileId);
+    if (raw) {
+      try {
+        if ((JSON.parse(raw) as FileMeta).key === key) return objectFileId;
+      } catch { /* corrupt row: fall through to a derived id */ }
+    }
+  }
+
+  const derived = stableObjectId(key);
+  const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + derived);
+  if (!raw) return derived;
+  try {
+    // The derived id belongs to a file that has since moved: do not clobber it.
+    return (JSON.parse(raw) as FileMeta).key === key ? derived : crypto.randomUUID();
+  } catch {
+    return crypto.randomUUID();
+  }
 }
 
 async function ensureFolderChain(env: Env, folderPath: string): Promise<void> {
@@ -451,7 +588,7 @@ async function handleDelete(request: Request, env: Env): Promise<Response> {
   const davPath = parseDavPath(request);
   if (!davPath) return new Response('Cannot DELETE root', { status: 403 });
 
-  const file = await findFileByDavPath(env, davPath);
+  const file = await resolveFileByDavPath(env, davPath);
   if (file) {
     await env.VAULT_BUCKET.delete(file.key);
     await env.VAULT_KV.delete(KV_PREFIX.FILE + file.id);
@@ -506,7 +643,7 @@ async function handleMkcol(request: Request, env: Env): Promise<Response> {
   const body = await request.text();
   if (body) return new Response('Unsupported Media Type', { status: 415 });
 
-  const existingFile = await findFileByDavPath(env, davPath);
+  const existingFile = await resolveFileByDavPath(env, davPath);
   if (existingFile) return new Response('Conflict', { status: 409 });
 
   const folders = await getAllFolders(env);
@@ -534,9 +671,9 @@ async function handleMove(request: Request, env: Env): Promise<Response> {
 
   const overwrite = request.headers.get('Overwrite') !== 'F';
 
-  const file = await findFileByDavPath(env, davPath);
+  const file = await resolveFileByDavPath(env, davPath);
   if (file) {
-    const destFile = await findFileByDavPath(env, destination);
+    const destFile = await resolveFileByDavPath(env, destination);
     if (destFile && !overwrite) return new Response('Precondition Failed', { status: 412 });
 
     const newFolder = toFolder(destination);
@@ -580,10 +717,10 @@ async function handleCopy(request: Request, env: Env): Promise<Response> {
 
   const overwrite = request.headers.get('Overwrite') !== 'F';
 
-  const file = await findFileByDavPath(env, davPath);
+  const file = await resolveFileByDavPath(env, davPath);
   if (!file) return new Response('Not Found', { status: 404 });
 
-  const destFile = await findFileByDavPath(env, destination);
+  const destFile = await resolveFileByDavPath(env, destination);
   if (destFile && !overwrite) return new Response('Precondition Failed', { status: 412 });
 
   const newFolder = toFolder(destination);

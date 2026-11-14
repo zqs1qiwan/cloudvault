@@ -35,6 +35,22 @@ ${propLines}
   </D:response>`;
 }
 
+/**
+ * The one ETag every WebDAV response must agree on.
+ *
+ * PROPFIND used to publish the bare file id while GET published R2's object
+ * ETag (the content MD5), so a client that read `getetag` from PROPFIND and
+ * sent it back as `If-Match` could never match: R2 compared the UUID with the
+ * MD5 and answered 412. Deriving the tag from the identity *and* the upload
+ * time keeps it consistent across PROPFIND/GET/HEAD while still changing when
+ * the bytes change (an overwrite refreshes `uploadedAt`).
+ */
+export function fileEtag(file: FileMeta): string {
+  const uploaded = Date.parse(file.uploadedAt);
+  const stamp = Number.isFinite(uploaded) ? uploaded : 0;
+  return `"${file.id}-${stamp}"`;
+}
+
 export function fileToProps(file: FileMeta): Record<string, string> {
   return {
     displayname: escapeXml(file.name),
@@ -42,7 +58,7 @@ export function fileToProps(file: FileMeta): Record<string, string> {
     getcontenttype: file.type || getMimeType(file.name),
     getlastmodified: new Date(file.uploadedAt).toUTCString(),
     creationdate: new Date(file.uploadedAt).toISOString(),
-    getetag: '"' + file.id + '"',
+    getetag: fileEtag(file),
   };
 }
 
