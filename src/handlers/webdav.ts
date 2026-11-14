@@ -78,19 +78,17 @@ async function findFileByDavPath(env: Env, davPath: string): Promise<FileMeta | 
 }
 
 /**
- * Resolve a path to its metadata, falling back to the R2 object when the KV
- * index has not caught up yet.
+ * Rebuild a file's metadata from its R2 object alone.
  *
- * Every path lookup used to go through a KV list, which is only eventually
- * consistent: a client that PUT a file and immediately MOVEd it in the same
- * second got 404 from a colo that had not seen the row yet. R2 is strongly
- * consistent and carries the owning row id in `customMetadata.fileId`, so the
- * object itself can stand in until the index arrives.
+ * Paths used to resolve only through a KV list, which is eventually
+ * consistent: a file uploaded a moment ago in another colo could be missing
+ * from the index and every reader had to invent something - MOVE said 404 and
+ * GET answered with R2's MD5 ETag while PROPFIND answered with the file id.
+ * R2 is strongly consistent and carries the owning row id in
+ * `customMetadata.fileId`, so the object itself can stand in with exactly the
+ * same identity and validator the index will hand out later.
  */
-async function resolveFileByDavPath(env: Env, davPath: string): Promise<FileMeta | null> {
-  const found = await findFileByDavPath(env, davPath);
-  if (found) return found;
-
+async function fileFromObject(env: Env, davPath: string): Promise<FileMeta | null> {
   const folder = toFolder(davPath);
   const name = toFileName(davPath);
   const key = toR2Key(folder, name);
@@ -121,6 +119,11 @@ async function resolveFileByDavPath(env: Env, davPath: string): Promise<FileMeta
     shareExpiresAt: null,
     downloads: 0,
   };
+}
+
+async function resolveFileByDavPath(env: Env, davPath: string): Promise<FileMeta | null> {
+  const found = await findFileByDavPath(env, davPath);
+  return found ?? fileFromObject(env, davPath);
 }
 
 /** Split an `If-Match` / `If-None-Match` list into comparable tags (weak prefix dropped). */
@@ -385,8 +388,8 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
 
   const folder = toFolder(davPath);
   const name = toFileName(davPath);
-  const file = allFiles.find(f => f.folder === folder && f.name === name) || null;
-
+  const indexed = allFiles.find(f => f.folder === folder && f.name === name) || null;
+  const file = indexed ?? await fileFromObject(env, davPath);
   const r2Key = file ? file.key : toR2Key(folder, name);
   const head = await env.VAULT_BUCKET.head(r2Key);
   if (!head) return new Response('Not Found', { status: 404 });
@@ -443,7 +446,8 @@ async function handleHead(request: Request, env: Env): Promise<Response> {
   if (davPath) {
     const folder = toFolder(davPath);
     const name = toFileName(davPath);
-    const file = allFiles.find(f => f.folder === folder && f.name === name) || null;
+    const indexed = allFiles.find(f => f.folder === folder && f.name === name) || null;
+    const file = indexed ?? await fileFromObject(env, davPath);
     const r2Key = file ? file.key : toR2Key(folder, name);
     const r2Head = await env.VAULT_BUCKET.head(r2Key);
     if (r2Head) {
@@ -508,12 +512,13 @@ async function handlePut(request: Request, env: Env): Promise<Response> {
 
   const created = !existingFile && !existingHead;
   const previousSize = existingFile?.size ?? existingHead?.size ?? 0;
-  // ETags are derived from `uploadedAt`, so make sure an overwrite never reuses
-  // the previous millisecond: two fast PUTs would otherwise publish the same
-  // validator and sync clients would skip the newer body.
+  // Derive the validator from the object's own upload time so that a reader who
+  // cannot see this KV row yet (a different colo) synthesizes the same ETag from
+  // R2. The +1ms guard keeps two PUTs in the same millisecond from colliding.
   const previousStamp = existingFile ? Date.parse(existingFile.uploadedAt) : NaN;
+  const objectStamp = r2Object.uploaded.getTime();
   const uploadedAt = new Date(
-    Number.isFinite(previousStamp) ? Math.max(Date.now(), previousStamp + 1) : Date.now(),
+    Number.isFinite(previousStamp) ? Math.max(objectStamp, previousStamp + 1) : objectStamp,
   ).toISOString();
 
   const meta: FileMeta = {

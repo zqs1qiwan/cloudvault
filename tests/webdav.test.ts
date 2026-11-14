@@ -280,6 +280,23 @@ describe('WebDAV uploads keep one row per path', () => {
     expect(await copy.text()).toBe('payload');
   });
 
+  it('agrees on the ETag when only the R2 object exists (index still lagging)', async () => {
+    const { env, r2 } = makeEnv();
+    await r2.put('file-backup/late.txt', 'payload', { customMetadata: { fileId: 'row-late' } });
+
+    const propfindTag = await getetag(env, 'file-backup/late.txt');
+    const getResponse = await handleWebDav(dav('file-backup/late.txt'), env);
+
+    expect(getResponse.status).toBe(200);
+    expect(getResponse.headers.get('ETag')).toBe(propfindTag);
+
+    const notModified = await handleWebDav(
+      dav('file-backup/late.txt', { headers: { 'If-None-Match': propfindTag } }),
+      env,
+    );
+    expect(notModified.status).toBe(304);
+  });
+
   it('moves a file whose metadata row has not reached KV yet', async () => {
     const { env, r2 } = makeEnv();
     // Simulate a colo that cannot see the row another colo just wrote.
