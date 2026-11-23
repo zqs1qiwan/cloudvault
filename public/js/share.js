@@ -116,7 +116,7 @@
       for (var i = 0; i < parts.length; i++) {
         var sep = document.createElement('span');
         sep.textContent = ' / ';
-        sep.className = 'text-gray-600';
+        sep.className = 'share-meta';
         breadcrumbEl.appendChild(sep);
 
         if (i < parts.length - 1) {
@@ -128,7 +128,7 @@
         } else {
           var partSpan = document.createElement('span');
           partSpan.textContent = parts[i];
-          partSpan.className = 'text-white';
+          partSpan.className = 'text-[var(--text-primary)]';
           breadcrumbEl.appendChild(partSpan);
         }
       }
@@ -143,8 +143,8 @@
 
       var sfDiv = document.createElement('a');
       sfDiv.href = '/s/' + token + '?path=' + encodeURIComponent(relativePath);
-      sfDiv.className = 'flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50 hover:bg-gray-800 transition-colors cursor-pointer';
-      sfDiv.innerHTML = '<span class="text-lg">\uD83D\uDCC1</span><span class="text-sm text-white truncate">' + escHtml(sfName) + '</span><svg class="w-4 h-4 ml-auto text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>';
+      sfDiv.className = 'share-row flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer';
+      sfDiv.innerHTML = '<span class="text-lg">\uD83D\uDCC1</span><span class="text-sm text-[var(--text-primary)] truncate">' + escHtml(sfName) + '</span><svg class="w-4 h-4 ml-auto share-meta" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>';
       subfoldersEl.appendChild(sfDiv);
     }
 
@@ -153,17 +153,17 @@
     for (var f = 0; f < files.length; f++) {
       var file = files[f];
       var fileDiv = document.createElement('div');
-      fileDiv.className = 'flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50 hover:bg-gray-800 transition-colors group';
+      fileDiv.className = 'share-row flex items-center gap-3 px-4 py-3 rounded-xl group';
 
       var previewUrl = '/s/' + token + '/folder-preview?key=' + encodeURIComponent(file.key);
       var isImage = file.type && file.type.startsWith('image/');
       var iconHtml = isImage
         ? '<img src="' + previewUrl + '" class="w-10 h-10 rounded-lg object-cover flex-shrink-0" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
-          + '<span class="w-10 h-10 rounded-lg bg-gray-700 items-center justify-center text-lg flex-shrink-0 hidden">' + escHtml(getFileIcon(file.type, file.name)) + '</span>'
-        : '<span class="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center text-lg flex-shrink-0">' + escHtml(getFileIcon(file.type, file.name)) + '</span>';
+          + '<span class="w-10 h-10 rounded-lg share-icon-tile items-center justify-center text-lg flex-shrink-0 hidden">' + escHtml(getFileIcon(file.type, file.name)) + '</span>'
+        : '<span class="w-10 h-10 rounded-lg share-icon-tile flex items-center justify-center text-lg flex-shrink-0">' + escHtml(getFileIcon(file.type, file.name)) + '</span>';
 
       fileDiv.innerHTML = iconHtml +
-        '<div class="flex-1 min-w-0"><p class="text-sm text-white truncate">' + escHtml(file.name) + '</p><p class="text-xs text-gray-500">' + formatBytes(file.size) + '</p></div>' +
+        '<div class="flex-1 min-w-0"><p class="text-sm text-[var(--text-primary)] truncate">' + escHtml(file.name) + '</p><p class="text-xs share-meta">' + formatBytes(file.size) + '</p></div>' +
         '<a href="/s/' + token + '/folder-download?key=' + encodeURIComponent(file.key) + '" class="px-3 py-1.5 rounded-lg bg-accent-600 hover:bg-accent-500 text-white text-xs font-medium transition-all opacity-0 group-hover:opacity-100">' +
         '<svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg></a>';
       filesEl.appendChild(fileDiv);

@@ -9,6 +9,9 @@
 :root {
   --color-primary: #00E5FF;
   --color-primary-rgb: 0, 229, 255;
+  --color-primary-channels: 0 229 255;
+  --color-primary-strong-rgb: 0, 184, 204;
+  --color-primary-strong-channels: 0 184 204;
   --color-accent: #FFB800;
   --color-accent-rgb: 255, 184, 0;
 
@@ -27,6 +30,10 @@
   --success: #22C55E;
   --danger: #EF4444;
   --warning: #F59E0B;
+  --warning-bg: rgba(234, 179, 8, 0.12);
+  --warning-border: rgba(234, 179, 8, 0.35);
+  --warning-text: #FACC15;
+  --switch-off: #2B394A;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -41,6 +48,9 @@
 html.light {
   --color-primary: #0088AA;
   --color-primary-rgb: 0, 136, 170;
+  --color-primary-channels: 0 136 170;
+  --color-primary-strong-rgb: 0, 109, 138;
+  --color-primary-strong-channels: 0 109 138;
   --color-accent: #D49700;
   --color-accent-rgb: 212, 151, 0;
 
@@ -52,11 +62,24 @@ html.light {
   --border-light: rgba(0, 136, 170, 0.2);
   --text-primary: #1A1F26;
   --text-secondary: #5C6670;
-  --text-muted: #8A9199;
+  --text-muted: #6B7280;
   --accent: #0088AA;
   --accent-hover: #006D8A;
   --accent-soft: rgba(0, 136, 170, 0.08);
+  --success: #15803D;
+  --danger: #DC2626;
+  --warning: #B45309;
+  --warning-bg: #FEF3C7;
+  --warning-border: #F59E0B;
+  --warning-text: #92400E;
+  --switch-off: #CBD5E1;
 }
+
+/* Native controls (select popups, scrollbars, focus rings) follow the theme.
+   Without this Chrome paints the role selects white while their text stays
+   light, so the current value disappears on the dark theme. */
+html { color-scheme: dark; }
+html.light { color-scheme: light; }
 
 /* ─── Global Typography ────────────────────────────────────────────── */
 body {
@@ -164,6 +187,14 @@ html.light .glow-orbs::after { background: rgba(var(--color-accent-rgb), 0.02); 
 .file-row:hover { background: var(--bg-tertiary); }
 .file-row.selected { background: var(--accent-soft); }
 
+/* Folder contents rendered by public/js/share.js. Those rows used to be
+   hard-coded dark surfaces (bg-gray-800/50 + white text), which turned into
+   dark blocks with invisible file names under the light theme. */
+.share-row { background: var(--bg-tertiary); transition: background 0.12s; }
+.share-row:hover { background: var(--bg-hover); }
+.share-icon-tile { background: var(--bg-hover); }
+.share-meta { color: var(--text-muted); }
+
 /* ─── Progress Bar ─────────────────────────────────────────────────── */
 .progress-bar { height: 4px; border-radius: 2px; background: var(--bg-tertiary); overflow: hidden; }
 .progress-bar .fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
@@ -222,6 +253,7 @@ html.light .glow-orbs::after { background: rgba(var(--color-accent-rgb), 0.02); 
   flex-shrink: 0;
 }
 html.light .brand-mark { background: #151D29; border-color: rgba(255, 255, 255, 0.16); }
+html.light .brand-mark svg { color: #8FE9F8; }
 
 /* ─── App header & toolbar ─────────────────────────────────────────── */
 /*
@@ -366,10 +398,28 @@ input[type="text"], input[type="url"], input[type="password"], input[type="numbe
   outline: none; transition: border-color 0.15s, box-shadow 0.15s;
 }
 input[type="search"].pl-10 { padding-left: 2.5rem; }
-input:focus {
+select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+select option { background: var(--bg-secondary); color: var(--text-primary); }
+input[type="checkbox"] { accent-color: var(--accent); }
+input:focus, select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
 }
+
+/* Settings switches. The off track used to be --bg-tertiary, which is all but
+   white on a white dialog, so the control disappeared in the light theme. */
+.switch-track { background: var(--switch-off); }
+.switch-knob { background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28); }
 
 /* ─── Buttons — Console Aesthetic ──────────────────────────────────── */
 .btn-primary {
@@ -416,6 +466,16 @@ input:focus {
   background: rgba(239,68,68,0.1);
   box-shadow: 0 0 16px rgba(239,68,68,0.1);
 }
+
+/* Copy-link control on the share page. Fixed gray utilities read as white
+   glyph on a near-white surface in the light theme. */
+.copy-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  transition: background 0.15s, color 0.15s;
+}
+.copy-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 /* ─── Empty State ──────────────────────────────────────────────────── */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--text-muted); }
@@ -489,6 +549,23 @@ input:focus {
 .type-pill-archives { background: rgba(251,191,36,0.15); color: #fbbf24; }
 .type-pill-code { background: rgba(249,115,22,0.15); color: #f97316; }
 .type-pill-other { background: rgba(148,163,184,0.15); color: #94a3b8; }
+
+/* The same pastel hues that read well on the dark canvas wash out on white.
+   Light theme uses the 700-level shade of each category instead. */
+html.light .type-dot.type-images { background: #DB2777; }
+html.light .type-dot.type-videos { background: #7C3AED; }
+html.light .type-dot.type-audio { background: #059669; }
+html.light .type-dot.type-documents { background: #2563EB; }
+html.light .type-dot.type-archives { background: #B45309; }
+html.light .type-dot.type-code { background: #EA580C; }
+html.light .type-dot.type-other { background: #64748B; }
+html.light .type-pill-images { background: rgba(219,39,119,0.12); color: #BE185D; }
+html.light .type-pill-videos { background: rgba(124,58,237,0.12); color: #6D28D9; }
+html.light .type-pill-audio { background: rgba(5,150,105,0.12); color: #047857; }
+html.light .type-pill-documents { background: rgba(37,99,235,0.12); color: #1D4ED8; }
+html.light .type-pill-archives { background: rgba(180,83,9,0.12); color: #B45309; }
+html.light .type-pill-code { background: rgba(234,88,12,0.12); color: #C2410C; }
+html.light .type-pill-other { background: rgba(100,116,139,0.12); color: #475569; }
 
 /* ─── Preview Modal ────────────────────────────────────────────────── */
 .preview-backdrop {

@@ -63,7 +63,7 @@
     </div>
   </header>
 
-  <div x-cloak x-show="me.mustChangePassword" class="flex items-center gap-2 px-4 py-2 text-xs border-b" style="background:rgba(234,179,8,.12);border-color:rgba(234,179,8,.35);color:#facc15">
+  <div x-cloak x-show="me.mustChangePassword" class="flex items-center gap-2 px-4 py-2 text-xs border-b" style="background:var(--warning-bg);border-color:var(--warning-border);color:var(--warning-text)">
     <span>This account still uses the password from the old deployment secret.</span>
     <button @click="openAccount()" class="underline">Set a new password</button>
   </div>
@@ -389,8 +389,8 @@
             </div>
             <div class="relative">
               <input type="checkbox" x-model="settingsModal.guestPageEnabled" class="sr-only peer">
-              <div class="w-10 h-5 rounded-full transition-colors" style="background:var(--bg-tertiary)" :style="settingsModal.guestPageEnabled ? 'background:var(--accent)' : ''"></div>
-              <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform" :class="settingsModal.guestPageEnabled ? 'translate-x-5' : ''"></div>
+              <div class="switch-track w-10 h-5 rounded-full transition-colors" :style="settingsModal.guestPageEnabled ? 'background:var(--accent)' : 'background:var(--switch-off)'"></div>
+              <div class="switch-knob absolute left-0.5 top-0.5 w-4 h-4 rounded-full transition-transform" :class="settingsModal.guestPageEnabled ? 'translate-x-5' : ''"></div>
             </div>
           </label>
         </div>
@@ -402,8 +402,8 @@
           </div>
           <div class="relative">
             <input type="checkbox" x-model="settingsModal.showLoginButton" class="sr-only peer">
-            <div class="w-10 h-5 rounded-full transition-colors" style="background:var(--bg-tertiary)" :style="settingsModal.showLoginButton ? 'background:var(--accent)' : ''"></div>
-            <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform" :class="settingsModal.showLoginButton ? 'translate-x-5' : ''"></div>
+            <div class="switch-track w-10 h-5 rounded-full transition-colors" :style="settingsModal.showLoginButton ? 'background:var(--accent)' : 'background:var(--switch-off)'"></div>
+            <div class="switch-knob absolute left-0.5 top-0.5 w-4 h-4 rounded-full transition-transform" :class="settingsModal.showLoginButton ? 'translate-x-5' : ''"></div>
           </div>
         </label>
 
@@ -558,7 +558,7 @@
         </div>
         <div class="flex items-center gap-2">
           <button @click="downloadFile(previewModal.file)" class="btn-secondary text-xs">Download</button>
-          <button @click="closePreview()" class="p-1.5 rounded-lg hover:bg-gray-700">
+          <button @click="closePreview()" class="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)]">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>

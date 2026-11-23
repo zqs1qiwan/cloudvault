@@ -23,6 +23,9 @@
     .sort-header { cursor: pointer; user-select: none; transition: color 0.1s; }
     .sort-header:hover { color: var(--text-primary); }
     .icon-box { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    /* Pastel type colours are tuned for the dark canvas; on white they read as
+       washed-out ghosts, so darken the glyph without touching the soft tile. */
+    html.light .icon-box svg { filter: brightness(0.72) saturate(1.15); }
     .action-btn { padding: 6px; border-radius: 6px; transition: background 0.1s, color 0.1s; color: var(--text-muted); background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .action-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
     /* dl-btn: moved to app.css */

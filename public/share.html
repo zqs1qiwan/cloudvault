@@ -16,7 +16,7 @@
     .preview-container video, .preview-container audio { width: 100%; max-height: 70vh; }
     .preview-container iframe { width: 100%; height: 70vh; border: none; }
     .preview-container pre { width: 100%; max-height: 70vh; overflow: auto; padding: 20px; margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-primary); background: var(--bg-primary); }
-    .copy-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: rgba(0, 229, 255, 0.15); border: 1px solid var(--accent); color: white; padding: 10px 20px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+    .copy-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--accent-soft); border: 1px solid var(--accent); color: var(--text-primary); padding: 10px 20px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity 0.2s; pointer-events: none; backdrop-filter: blur(12px); }
     .copy-toast.show { opacity: 1; }
   </style>
   <link rel="stylesheet" href="/css/app.css">
@@ -44,7 +44,7 @@
           <p class="text-sm text-[var(--text-muted)] mb-4">Enter the password to access this file</p>
           <form id="password-form" method="POST">
             <input type="password" name="password" placeholder="Password" required autofocus class="w-full px-4 py-3 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border-light)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-accent-400 mb-3">
-            <div id="password-error" class="hidden text-red-400 text-sm mb-3"></div>
+            <div id="password-error" class="hidden text-sm mb-3" style="color:var(--danger)"></div>
             <button type="submit" class="w-full py-3 rounded-md bg-transparent border border-accent-400 text-accent-400 hover:bg-accent-400/10 hover:shadow-[0_0_20px_rgba(0,229,255,0.15)] font-medium transition-all">Unlock</button>
           </form>
         </div>
@@ -73,7 +73,7 @@
               <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
               Download
             </a>
-            <button id="copy-btn" class="px-4 py-3 rounded-md bg-[var(--bg-tertiary)] hover:bg-gray-700 text-gray-300 transition-all" title="Copy link">
+            <button id="copy-btn" class="copy-btn px-4 py-3" title="Copy link">
               <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
             </button>
           </div>
@@ -88,7 +88,7 @@
               <h1 class="text-lg font-semibold text-[var(--text-primary)] truncate" id="folder-title"></h1>
               <div id="folder-breadcrumb" class="flex items-center gap-1 mt-1 text-sm text-[var(--text-muted)] flex-wrap"></div>
             </div>
-            <button id="folder-copy-btn" class="px-3 py-2 rounded-md bg-[var(--bg-tertiary)] hover:bg-gray-700 text-gray-300 transition-all text-sm" title="Copy link">
+            <button id="folder-copy-btn" class="copy-btn px-3 py-2 text-sm" title="Copy link">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
             </button>
           </div>

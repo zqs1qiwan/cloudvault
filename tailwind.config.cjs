@@ -9,12 +9,15 @@ module.exports = {
           100: '#b3f5ff',
           200: '#80eeff',
           300: '#4de7ff',
-          400: '#00E5FF',
-          500: '#00E5FF',
-          600: '#00b8cc',
-          700: '#008a99',
-          800: '#005d66',
-          900: '#002f33',
+          // The dashboard is theme-aware. These accent utilities used to bake in
+          // the dark-theme cyan, so every icon or outline written with
+          // `text-accent-400` / `border-accent-400` vanished on the light theme.
+          400: 'rgb(var(--color-primary-channels) / <alpha-value>)',
+          500: 'rgb(var(--color-primary-channels) / <alpha-value>)',
+          600: 'rgb(var(--color-primary-strong-channels) / <alpha-value>)',
+          700: 'rgb(var(--color-primary-strong-channels) / <alpha-value>)',
+          800: 'rgb(var(--color-primary-strong-channels) / <alpha-value>)',
+          900: 'rgb(var(--color-primary-strong-channels) / <alpha-value>)',
         },
         warm: '#FFB800',
       },
