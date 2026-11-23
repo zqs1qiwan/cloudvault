@@ -248,6 +248,10 @@ html.light .glow-orbs::after { background: rgba(var(--color-accent-rgb), 0.02); 
    the `hidden lg:inline` trick would have hidden them at every width. */
 .toolbar-label-wide { display: inline; }
 @media (max-width: 900px) { .toolbar-label-wide { display: none; } .toolbar-search { width: 160px; } }
+/* Between 768 and 900 the sidebar is still docked (it only turns into an
+   overlay below 768), so the toolbar loses ~224px while keeping all six
+   controls. A shorter search field keeps that row from wrapping by one button. */
+@media (min-width: 768px) and (max-width: 900px) { .toolbar-search { width: 100px; } }
 @media (max-width: 520px) { .toolbar-search { width: 112px; } }
 
 /* Narrow: the path gets its own row instead of fighting the controls for
