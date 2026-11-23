@@ -35,6 +35,21 @@ describe('HTML inline scripts', () => {
     expect(dashboard).toMatch(/id="file-search"[^>]*readonly[^>]*onfocus="this\.removeAttribute\('readonly'\)"/);
   });
 
+  it('draws every share link icon with the canonical Heroicons link path', () => {
+    const canonical =
+      'M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244';
+    const pages = readdirSync('public').filter((file) => file.endsWith('.html'));
+    let found = 0;
+    for (const name of pages) {
+      const html = readFileSync(join('public', name), 'utf8');
+      for (const match of html.matchAll(/<path[^>]*\bd="(M13\.19 8\.688[^"]*)"/g)) {
+        found += 1;
+        expect(match[1], `${name} has a malformed share link icon`).toBe(canonical);
+      }
+    }
+    expect(found).toBeGreaterThanOrEqual(5);
+  });
+
   it('gives Chrome a dedicated username field on the login form', () => {
     const html = readFileSync(join('public', 'login.html'), 'utf8');
     expect(html).toMatch(/name="username"[\s\S]*?autocomplete="username"/);
