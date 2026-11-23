@@ -1,129 +1,217 @@
-import { Env, Session, KV_PREFIX } from './utils/types';
-import { json, error, redirect } from './utils/response';
+// ─── Authentication ───────────────────────────────────────────────────
+//
+// A session is a KV record that names the account it belongs to. Every
+// authenticated request therefore proves two things at once: the session
+// exists, and the account behind it still does - deleting a user kills their
+// sessions without a separate revocation list.
 
-const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+import type { Account, Env, Session } from './utils/types';
+import { KV_PREFIX } from './utils/types';
+import { error, json } from './lib/http';
+import { checkLimit, clearFailures, clientId, recordFailure } from './lib/ratelimit';
+import {
+  bootstrapAccounts,
+  claimFirstAdmin,
+  getAccountById,
+  verifyLogin,
+} from './lib/accounts';
 
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
+export const SESSION_COOKIE = 'session';
+const SESSION_TTL = 7 * 86400; // seconds
 
-async function verifyPassword(input: string, storedHash: string): Promise<boolean> {
-  const inputHash = await hashPassword(input);
-  const encoder = new TextEncoder();
-  const a = encoder.encode(inputHash);
-  const b = encoder.encode(storedHash);
-  if (a.byteLength !== b.byteLength) return false;
-  return crypto.subtle.timingSafeEqual(a, b);
-}
-
-export async function createSession(env: Env): Promise<{ sessionId: string; cookie: string }> {
-  const sessionId = crypto.randomUUID();
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + SESSION_DURATION_MS);
-
-  const session: Session = {
-    id: sessionId,
-    createdAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString(),
-  };
-
-  await env.VAULT_KV.put(
-    KV_PREFIX.SESSION + sessionId,
-    JSON.stringify(session),
-    { expirationTtl: Math.floor(SESSION_DURATION_MS / 1000) }
-  );
-
-  const cookie = `session=${sessionId}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(SESSION_DURATION_MS / 1000)}`;
-  return { sessionId, cookie };
-}
-
-export async function validateSession(request: Request, env: Env): Promise<boolean> {
-  const cookieHeader = request.headers.get('Cookie') || '';
-  const match = cookieHeader.match(/session=([^;]+)/);
-  if (!match) return false;
-
-  const sessionId = match[1];
-  const raw = await env.VAULT_KV.get(KV_PREFIX.SESSION + sessionId);
-  if (!raw) return false;
-
-  const session: Session = JSON.parse(raw);
-  if (new Date(session.expiresAt) < new Date()) {
-    await env.VAULT_KV.delete(KV_PREFIX.SESSION + sessionId);
-    return false;
+export function cookieValue(request: Request, name: string): string | null {
+  const header = request.headers.get('Cookie') ?? '';
+  for (const part of header.split(';')) {
+    const [rawName, ...rest] = part.trim().split('=');
+    if (rawName === name) return rest.join('=');
   }
-  return true;
+  return null;
 }
 
-function getSessionId(request: Request): string | null {
-  const cookieHeader = request.headers.get('Cookie') || '';
-  const match = cookieHeader.match(/session=([^;]+)/);
-  return match ? match[1] : null;
+export async function createSession(env: Env, account: Account): Promise<Session> {
+  const session: Session = {
+    id: crypto.randomUUID(),
+    userId: account.id,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + SESSION_TTL * 1000).toISOString(),
+  };
+  await env.VAULT_KV.put(KV_PREFIX.SESSION + session.id, JSON.stringify(session), {
+    expirationTtl: SESSION_TTL,
+  });
+  return session;
 }
+
+export interface SessionContext {
+  session: Session;
+  account: Account;
+}
+
+/**
+ * Resolve a session id to the account that owns it. Sessions issued before
+ * accounts existed carry no `userId`; they are dropped rather than upgraded,
+ * because there is no way to know who they belonged to.
+ */
+export async function getSessionAccount(env: Env, sessionId: string): Promise<SessionContext | null> {
+  if (!sessionId) return null;
+  const raw = await env.VAULT_KV.get(KV_PREFIX.SESSION + sessionId);
+  if (!raw) return null;
+
+  let session: Session;
+  try {
+    session = JSON.parse(raw) as Session;
+  } catch {
+    return null;
+  }
+
+  const expired = !session.expiresAt || Date.parse(session.expiresAt) <= Date.now();
+  if (expired || !session.userId) {
+    await env.VAULT_KV.delete(KV_PREFIX.SESSION + sessionId);
+    return null;
+  }
+
+  const account = await getAccountById(env, session.userId);
+  if (!account) {
+    await env.VAULT_KV.delete(KV_PREFIX.SESSION + sessionId);
+    return null;
+  }
+  return { session, account };
+}
+
+export async function requireUser(request: Request, env: Env): Promise<Account | null> {
+  const sessionId = cookieValue(request, SESSION_COOKIE);
+  if (!sessionId) return null;
+  const context = await getSessionAccount(env, sessionId);
+  return context?.account ?? null;
+}
+
+export async function requireAdmin(request: Request, env: Env): Promise<Account | null> {
+  const account = await requireUser(request, env);
+  return account && account.role === 'admin' ? account : null;
+}
+
+/** Revoke every session for an account, optionally sparing the caller's own. */
+export async function revokeSessionsForUser(env: Env, userId: string, exceptSessionId?: string): Promise<number> {
+  let revoked = 0;
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await env.VAULT_KV.list({ prefix: KV_PREFIX.SESSION, cursor, limit: 1000 });
+    const values = await Promise.all(page.keys.map((entry) => env.VAULT_KV.get(entry.name)));
+    const doomed: string[] = [];
+    for (let i = 0; i < page.keys.length; i++) {
+      const name = page.keys[i].name;
+      const id = name.slice(KV_PREFIX.SESSION.length);
+      if (id === exceptSessionId) continue;
+      const raw = values[i];
+      if (!raw) continue;
+      try {
+        const session = JSON.parse(raw) as Session;
+        if (session.userId === userId) doomed.push(id);
+      } catch {
+        // unreadable session records are left for their TTL
+      }
+    }
+    // KV has no batch delete in the Workers types; one call per session is
+    // still fine because a person holds only a handful.
+    if (doomed.length) {
+      await Promise.all(doomed.map((id) => env.VAULT_KV.delete(KV_PREFIX.SESSION + id)));
+      revoked += doomed.length;
+    }
+    if (page.list_complete) break;
+    cursor = page.cursor;
+  }
+  return revoked;
+}
+
+function sessionCookie(session: Session): string {
+  return `${SESSION_COOKIE}=${session.id}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_TTL}`;
+}
+
+function expiredCookie(): string {
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+}
+
+// ─── Login ────────────────────────────────────────────────────────────
 
 export async function handleLogin(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') return error('Method not allowed', 405);
+  const form = await request.formData().catch(() => null);
+  if (!form) return error('Invalid request', 400);
 
-  const contentType = request.headers.get('Content-Type') || '';
-  let password: string;
+  const username = String(form.get('username') ?? '').trim();
+  const password = String(form.get('password') ?? '');
 
-  if (contentType.includes('application/x-www-form-urlencoded')) {
-    const formData = await request.formData();
-    password = formData.get('password') as string || '';
-  } else if (contentType.includes('application/json')) {
-    const body = await request.json<{ password: string }>();
-    password = body.password || '';
-  } else {
-    return error('Unsupported content type', 415);
+  const guard = await checkLimit(env, 'login', clientId(request));
+  if (guard.blocked) {
+    return json({ error: `Too many attempts. Try again in ${guard.retryAfter}s.` }, 429);
   }
 
-  if (!password) return error('Password required', 400);
+  // A fresh deployment has nothing to sign in with; say so explicitly instead
+  // of answering "invalid password" to credentials nobody has created yet.
+  if (!(await bootstrapAccounts(env)).ready) {
+    return json({ error: 'This vault has not been set up yet.', setup: true }, 409);
+  }
 
-  const storedHash = await hashPassword(env.ADMIN_PASSWORD);
-  const valid = await verifyPassword(password, storedHash);
+  if (!username || !password) return error('Username and password required', 400);
 
-  if (!valid) return error('Invalid password', 401);
+  const account = await verifyLogin(env, username, password);
+  if (!account) {
+    await recordFailure(env, 'login', clientId(request));
+    // Same wording for "no such user" and "wrong password": the response must
+    // not tell an attacker which half of the guess was correct.
+    return error('Invalid username or password', 401);
+  }
 
-  const { cookie } = await createSession(env);
+  await clearFailures(env, 'login', clientId(request));
+  const session = await createSession(env, account);
+  return json(
+    { message: 'ok', username: account.username, role: account.role, mustChangePassword: account.mustChangePassword },
+    200,
+    'no-store',
+    { 'Set-Cookie': sessionCookie(session) },
+  );
+}
 
-  return new Response(JSON.stringify({ message: 'ok' }), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Set-Cookie': cookie,
-      'Location': '/admin',
-    },
-  });
+// ─── First-run setup ──────────────────────────────────────────────────
+
+/**
+ * Creates the first admin and signs it in. Rejected as soon as any account
+ * exists, so this endpoint cannot be used to mint a second administrator later.
+ */
+export async function handleSetup(request: Request, env: Env): Promise<Response> {
+  const form = await request.formData().catch(() => null);
+  if (!form) return error('Invalid request', 400);
+
+  const username = String(form.get('username') ?? '').trim();
+  const password = String(form.get('password') ?? '');
+  const confirm = String(form.get('confirm') ?? '');
+
+  const guard = await checkLimit(env, 'setup', clientId(request));
+  if (guard.blocked) {
+    await recordFailure(env, 'setup', clientId(request));
+    return json({ error: `Too many attempts. Try again in ${guard.retryAfter}s.` }, 429);
+  }
+
+  if (password !== confirm) return error('Passwords do not match', 400);
+
+  try {
+    const account = await claimFirstAdmin(env, { username, password });
+    await clearFailures(env, 'setup', clientId(request));
+    const session = await createSession(env, account);
+    return json({ message: 'ok' }, 201, 'no-store', { 'Set-Cookie': sessionCookie(session) });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Setup failed';
+    if (message === 'Already initialized') {
+      return json({ error: 'This vault is already initialized. Sign in instead.', login: true }, 409);
+    }
+    await recordFailure(env, 'setup', clientId(request));
+    return error(message, 400);
+  }
 }
 
 export async function handleLogout(request: Request, env: Env): Promise<Response> {
-  const sessionId = getSessionId(request);
-  if (sessionId) {
-    await env.VAULT_KV.delete(KV_PREFIX.SESSION + sessionId);
-  }
+  const sessionId = cookieValue(request, SESSION_COOKIE);
+  if (sessionId) await env.VAULT_KV.delete(KV_PREFIX.SESSION + sessionId);
   return new Response(null, {
-    status: 302,
-    headers: {
-      'Location': '/',
-      'Set-Cookie': 'session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
-    },
+    status: 303,
+    headers: { Location: '/login', 'Set-Cookie': expiredCookie() },
   });
-}
-
-const PUBLIC_PREFIXES = ['/s/', '/auth/', '/login'];
-
-export async function authMiddleware(request: Request, env: Env): Promise<Response | null> {
-  const url = new URL(request.url);
-  for (const prefix of PUBLIC_PREFIXES) {
-    if (url.pathname.startsWith(prefix)) return null;
-  }
-  if (url.pathname === '/login') return null;
-
-  const valid = await validateSession(request, env);
-  if (!valid) return url.pathname.startsWith('/api/')
-    ? error('Unauthorized', 401)
-    : redirect('/login');
-  return null;
 }

@@ -1,490 +1,230 @@
-import { Env, FileMeta, KV_PREFIX } from '../utils/types';
-import { json, error } from '../utils/response';
+// ─── Sharing (admin side + guest visibility rules) ────────────────────
+//
+// A share is one KV record pointing at one object key. One file, one token:
+// creating a share twice updates the record instead of minting a second link,
+// so revoking always revokes all of them.
+
+import type { Env, FileMeta, FolderShareLink, ShareRecord } from '../utils/types';
+import { ROOT, isUnder, normalizeFolder } from '../lib/paths';
+import { headObject, listDir, metaFromObject, objectExists } from '../lib/objects';
+import { json, error } from '../lib/http';
+import {
+  deleteFolderLink,
+  deleteShare,
+  findFolderLink,
+  findShareForKey,
+  getExcludedFolders,
+  getFolderLinkByToken,
+  getShare,
+  getSharedFolders,
+  hashSharePassword,
+  isExcluded,
+  isFolderShared,
+  listShares,
+  putFolderLink,
+  putShare,
+  purgeFolderLinks,
+  toggleFolderFlag,
+} from '../lib/shares';
 import { getSettings } from './settings';
-import { getStoredFiles, serveR2File } from '../utils/files';
+import { KV_PREFIX } from '../utils/types';
 
-function extractFileId(url: URL): string | null {
-  const parts = url.pathname.split('/');
-  const idx = parts.indexOf('share');
-  return idx >= 0 && parts[idx + 1] ? parts[idx + 1] : null;
+function newToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function hashSharePassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + ':cloudvault-share-salt');
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+function expiresAtFrom(days: unknown): string | null {
+  const value = Number(days);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return new Date(Date.now() + Math.min(value, 3650) * 86400_000).toISOString();
 }
 
-export async function verifySharePassword(input: string, storedHash: string): Promise<boolean> {
-  const inputHash = await hashSharePassword(input);
-  const encoder = new TextEncoder();
-  const a = encoder.encode(inputHash);
-  const b = encoder.encode(storedHash);
-  if (a.byteLength !== b.byteLength) return false;
-  return crypto.subtle.timingSafeEqual(a, b);
+function isExpired(expiresAt: string | null): boolean {
+  return !!expiresAt && Date.parse(expiresAt) <= Date.now();
 }
 
-// ─── Folder Sharing Helpers ───────────────────────────────────────────
-
-export async function getSharedFolders(env: Env): Promise<Set<string>> {
-  const folders = new Set<string>();
-  let cursor: string | undefined;
-  for (;;) {
-    const result = await env.VAULT_KV.list({ prefix: KV_PREFIX.FOLDER_SHARE, limit: 1000, cursor });
-    for (const key of result.keys) {
-      const name = key.name.slice(KV_PREFIX.FOLDER_SHARE.length);
-      if (name) folders.add(name);
-    }
-    if (result.list_complete) break;
-    cursor = result.cursor;
-  }
-  return folders;
+export function shareIsUsable(record: ShareRecord): boolean {
+  return !isExpired(record.expiresAt ?? null);
 }
 
-export async function getExcludedFolders(env: Env): Promise<Set<string>> {
-  const folders = new Set<string>();
-  let cursor: string | undefined;
-  for (;;) {
-    const result = await env.VAULT_KV.list({ prefix: KV_PREFIX.FOLDER_SHARE_EXCLUDE, limit: 1000, cursor });
-    for (const key of result.keys) {
-      const name = key.name.slice(KV_PREFIX.FOLDER_SHARE_EXCLUDE.length);
-      if (name) folders.add(name);
-    }
-    if (result.list_complete) break;
-    cursor = result.cursor;
-  }
-  return folders;
-}
+// ─── File shares ──────────────────────────────────────────────────────
 
-export function isFolderShared(folderPath: string, sharedFolders: Set<string>, excludedFolders?: Set<string>): boolean {
-  if (!folderPath || folderPath === 'root') return false;
-  const ancestors: string[] = [];
-  let current = folderPath;
-  while (current) {
-    ancestors.push(current);
-    const lastSlash = current.lastIndexOf('/');
-    if (lastSlash < 0) break;
-    current = current.substring(0, lastSlash);
-  }
-  if (excludedFolders && ancestors.some((folder) => excludedFolders.has(folder))) return false;
-  return ancestors.some((folder) => sharedFolders.has(folder));
-}
-
-// ─── File Share CRUD ──────────────────────────────────────────────────
-
-export async function createShare(request: Request, env: Env): Promise<Response> {
-  const body = await request.json<{
-    fileId: string;
-    password?: string;
-    expiresInDays?: number;
-  }>();
-
-  if (!body.fileId) return error('fileId required', 400);
-
-  const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + body.fileId);
-  if (!raw) return error('File not found', 404);
-
-  const meta: FileMeta = JSON.parse(raw);
-
-  if (meta.shareToken) {
-    await env.VAULT_KV.delete(KV_PREFIX.SHARE + meta.shareToken);
+export async function handleCreateShare(request: Request, env: Env): Promise<Response> {
+  let body: { key?: unknown; password?: unknown; expiresInDays?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return error('Invalid request body', 400);
   }
 
-  const token = crypto.randomUUID();
-  let passwordHash: string | null = null;
-  if (body.password) {
-    passwordHash = await hashSharePassword(body.password);
-  }
+  // The object key is the file's identity everywhere else in the API; this
+  // endpoint used to take a separately minted `fileId`, which is exactly the
+  // second identifier this refactor removed.
+  const key = typeof body.key === 'string' ? body.key : '';
+  if (!key) return error('Missing key', 400);
+  if (!(await objectExists(env, key))) return error('File not found', 404);
 
-  let expiresAt: string | null = null;
-  if (body.expiresInDays && body.expiresInDays > 0) {
-    expiresAt = new Date(Date.now() + body.expiresInDays * 24 * 60 * 60 * 1000).toISOString();
-  }
+  const existing = await findShareForKey(env, key);
+  const password = typeof body.password === 'string' && body.password ? body.password : null;
+  const expiresAt = expiresAtFrom(body.expiresInDays);
 
-  meta.shareToken = token;
-  meta.sharePassword = passwordHash;
-  meta.shareExpiresAt = expiresAt;
+  const token = existing?.token ?? newToken();
+  const record: ShareRecord = {
+    key,
+    createdAt: existing ? (await getShare(env, token))?.createdAt ?? new Date().toISOString() : new Date().toISOString(),
+    passwordHash: password ? await hashSharePassword(password) : null,
+    expiresAt,
+    downloads: existing?.downloads ?? 0,
+  };
 
-  await Promise.all([
-    env.VAULT_KV.put(KV_PREFIX.SHARE + token, body.fileId),
-    env.VAULT_KV.put(KV_PREFIX.FILE + body.fileId, JSON.stringify(meta)),
-  ]);
-
+  await putShare(env, token, record);
   return json({
     token,
-    url: '/s/' + token,
     expiresAt,
-    hasPassword: !!passwordHash,
+    hasPassword: !!record.passwordHash,
+    downloads: record.downloads,
   });
 }
 
-export async function revokeShare(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const fileId = extractFileId(url);
-  if (!fileId) return error('File ID required', 400);
-
-  const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + fileId);
-  if (!raw) return error('File not found', 404);
-
-  const meta: FileMeta = JSON.parse(raw);
-  if (meta.shareToken) {
-    await env.VAULT_KV.delete(KV_PREFIX.SHARE + meta.shareToken);
-  }
-
-  meta.shareToken = null;
-  meta.sharePassword = null;
-  meta.shareExpiresAt = null;
-
-  await env.VAULT_KV.put(KV_PREFIX.FILE + fileId, JSON.stringify(meta));
-
-  return json({ message: 'Share revoked' });
+export async function handleRevokeShare(key: string, env: Env): Promise<Response> {
+  const share = await findShareForKey(env, key);
+  if (!share) return error('Share not found', 404);
+  await deleteShare(env, share.token);
+  return json({ message: 'Share link revoked' });
 }
 
-export async function getShareInfo(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const fileId = extractFileId(url);
-  if (!fileId) return error('File ID required', 400);
+// ─── Folder visibility ────────────────────────────────────────────────
 
-  const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + fileId);
-  if (!raw) return error('File not found', 404);
-
-  const meta: FileMeta = JSON.parse(raw);
-
-  return json({
-    fileId: meta.id,
-    token: meta.shareToken,
-    hasPassword: !!meta.sharePassword,
-    expiresAt: meta.shareExpiresAt,
-    downloads: meta.downloads,
-  });
+export async function handleFolderShareToggle(request: Request, env: Env): Promise<Response> {
+  return toggle(request, env, KV_PREFIX.FOLDER_SHARE);
 }
 
-// ─── Folder Share Toggle ──────────────────────────────────────────────
-
-export async function shareFolderToggle(request: Request, env: Env): Promise<Response> {
-  const body = await request.json<{ folder: string }>();
-  if (!body.folder?.trim()) return error('Folder name required', 400);
-
-  const folder = body.folder.trim();
-  const kvKey = KV_PREFIX.FOLDER_SHARE + folder;
-  const existing = await env.VAULT_KV.get(kvKey);
-
-  if (existing) {
-    await env.VAULT_KV.delete(kvKey);
-    return json({ shared: false, folder });
-  }
-
-  await env.VAULT_KV.put(kvKey, JSON.stringify({ folder, sharedAt: new Date().toISOString() }));
-  return json({ shared: true, folder });
+export async function handleFolderExcludeToggle(request: Request, env: Env): Promise<Response> {
+  return toggle(request, env, KV_PREFIX.FOLDER_SHARE_EXCLUDE);
 }
 
-export async function listSharedFolders(_request: Request, env: Env): Promise<Response> {
-  const folders = await getSharedFolders(env);
-  return json({ folders: Array.from(folders).sort() });
+async function toggle(request: Request, env: Env, prefix: string): Promise<Response> {
+  let body: { folder?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return error('Invalid request body', 400);
+  }
+  try {
+    const result = await toggleFolderFlag(env, prefix, String(body.folder ?? ''));
+    return json(result);
+  } catch (err) {
+    return error((err as Error).message, 400);
+  }
 }
 
-export async function toggleFolderExclude(request: Request, env: Env): Promise<Response> {
-  const body = await request.json<{ folder: string }>();
-  if (!body.folder?.trim()) return error('Folder name required', 400);
+// ─── Folder share links ───────────────────────────────────────────────
 
-  const folder = body.folder.trim();
-  const kvKey = KV_PREFIX.FOLDER_SHARE_EXCLUDE + folder;
-  const existing = await env.VAULT_KV.get(kvKey);
-
-  if (existing) {
-    await env.VAULT_KV.delete(kvKey);
-    return json({ excluded: false, folder });
+export async function handleGetFolderLink(folder: string, env: Env): Promise<Response> {
+  try {
+    const found = await findFolderLink(env, folder);
+    if (!found) return json({ token: null, hasPassword: false, expiresAt: null, folder });
+    return json({
+      token: found.token,
+      hasPassword: !!found.link.passwordHash,
+      expiresAt: found.link.expiresAt ?? null,
+      folder: found.link.folder,
+    });
+  } catch (err) {
+    return error((err as Error).message, 400);
   }
-
-  await env.VAULT_KV.put(kvKey, JSON.stringify({ folder, excludedAt: new Date().toISOString() }));
-  return json({ excluded: true, folder });
 }
 
-// ─── Folder Share Link CRUD ────────────────────────────────────────────
-
-export async function createFolderShareLink(request: Request, env: Env): Promise<Response> {
-  const body = await request.json<{
-    folder: string;
-    password?: string;
-    expiresInDays?: number;
-  }>();
-
-  if (!body.folder?.trim()) return error('Folder name required', 400);
-  const folder = body.folder.trim();
-
-  const existingRaw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder);
-  if (existingRaw) {
-    const existing = JSON.parse(existingRaw);
-    if (existing.token) {
-      await env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + existing.token);
-    }
+export async function handleCreateFolderLink(request: Request, env: Env): Promise<Response> {
+  let body: { folder?: unknown; password?: unknown; expiresInDays?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return error('Invalid request body', 400);
   }
 
-  const token = crypto.randomUUID();
-  let passwordHash: string | null = null;
-  if (body.password) {
-    passwordHash = await hashSharePassword(body.password);
+  try {
+    const folder = normalizeFolder(String(body.folder ?? ''));
+    if (folder === ROOT) return error('Root cannot be shared', 400);
+
+    const found = await findFolderLink(env, folder);
+    const token = found?.token ?? newToken();
+    const password = typeof body.password === 'string' && body.password ? body.password : null;
+    const link: FolderShareLink = {
+      folder,
+      createdAt: found?.link.createdAt ?? new Date().toISOString(),
+      passwordHash: password ? await hashSharePassword(password) : null,
+      expiresAt: expiresAtFrom(body.expiresInDays),
+    };
+    await putFolderLink(env, token, link);
+    return json({ token, folder, hasPassword: !!link.passwordHash, expiresAt: link.expiresAt });
+  } catch (err) {
+    return error((err as Error).message, 400);
   }
-
-  let expiresAt: string | null = null;
-  if (body.expiresInDays && body.expiresInDays > 0) {
-    expiresAt = new Date(Date.now() + body.expiresInDays * 24 * 60 * 60 * 1000).toISOString();
-  }
-
-  const linkData = { folder, passwordHash, expiresAt, createdAt: new Date().toISOString() };
-
-  await Promise.all([
-    env.VAULT_KV.put(KV_PREFIX.FOLDER_SHARE_LINK + token, JSON.stringify(linkData)),
-    env.VAULT_KV.put(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder, JSON.stringify({ token, passwordHash, expiresAt })),
-  ]);
-
-  return json({
-    token,
-    url: '/s/' + token,
-    expiresAt,
-    hasPassword: !!passwordHash,
-  });
 }
 
-export async function revokeFolderShareLink(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const folder = decodeURIComponent(url.pathname.split('/').slice(3).join('/'));
-  if (!folder) return error('Folder path required', 400);
-
-  const metaRaw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder);
-  if (!metaRaw) return error('No share link found for this folder', 404);
-
-  const meta = JSON.parse(metaRaw);
-  await Promise.all([
-    env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + meta.token),
-    env.VAULT_KV.delete(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder),
-  ]);
-
-  return json({ message: 'Folder share link revoked' });
+export async function handleRevokeFolderLink(folder: string, env: Env): Promise<Response> {
+  try {
+    const found = await findFolderLink(env, folder);
+    if (!found) return error('Share link not found', 404);
+    await deleteFolderLink(env, found.token);
+    return json({ message: 'Folder share link revoked' });
+  } catch (err) {
+    return error((err as Error).message, 400);
+  }
 }
 
-export async function getFolderShareLinkInfo(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const folder = decodeURIComponent(url.pathname.split('/').slice(3).join('/'));
-  if (!folder) return error('Folder path required', 400);
-
-  const metaRaw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + 'meta:' + folder);
-  if (!metaRaw) return json({ token: null });
-
-  const meta = JSON.parse(metaRaw);
-  return json({
-    folder,
-    token: meta.token,
-    hasPassword: !!meta.passwordHash,
-    expiresAt: meta.expiresAt,
-  });
+export async function revokeFolderLinksUnder(folder: string, env: Env): Promise<void> {
+  await purgeFolderLinks(env, folder);
 }
 
-export async function resolveFolderShareToken(token: string, env: Env): Promise<{ folder: string; passwordHash: string | null; expiresAt: string | null } | null> {
-  const raw = await env.VAULT_KV.get(KV_PREFIX.FOLDER_SHARE_LINK + token);
-  if (!raw) return null;
-  const data = JSON.parse(raw);
-  return { folder: data.folder, passwordHash: data.passwordHash || null, expiresAt: data.expiresAt || null };
+// ─── Guest visibility ─────────────────────────────────────────────────
+
+export interface GuestFolderView {
+  files: FileMeta[];
+  subfolders: string[];
 }
 
-export async function browseFolderShareLink(folder: string, subpath: string, env: Env): Promise<{ files: Array<{ id: string; name: string; size: number; type: string; folder: string; uploadedAt: string }>; subfolders: string[] }> {
-  const browsePath = subpath ? folder + '/' + subpath : folder;
-  const allFiles = await getStoredFiles(env);
-  const prefix = browsePath + '/';
-
-  const folderFiles = allFiles
-    .filter(f => f.folder === browsePath)
-    .map(f => ({
-      id: f.id, name: f.name, size: f.size, type: f.type,
-      folder: f.folder, uploadedAt: f.uploadedAt,
-    }))
-    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
-
-  const subfolderSet = new Set<string>();
-  for (const f of allFiles) {
-    if (f.folder.startsWith(prefix)) {
-      const rest = f.folder.slice(prefix.length);
-      const slashIdx = rest.indexOf('/');
-      const childName = slashIdx >= 0 ? rest.substring(0, slashIdx) : rest;
-      if (childName) subfolderSet.add(prefix + childName);
-    }
-  }
-
-  let cursor: string | undefined;
-  for (;;) {
-    const result = await env.VAULT_KV.list({ prefix: 'folder:' + prefix, limit: 1000, cursor });
-    for (const key of result.keys) {
-      const name = key.name.slice('folder:'.length);
-      if (name.startsWith(prefix)) {
-        const rest = name.slice(prefix.length);
-        const slashIdx = rest.indexOf('/');
-        const childName = slashIdx >= 0 ? rest.substring(0, slashIdx) : rest;
-        if (childName) subfolderSet.add(prefix + childName);
-      }
-    }
-    if (result.list_complete) break;
-    cursor = result.cursor;
-  }
-
-  return { files: folderFiles, subfolders: Array.from(subfolderSet).sort() };
+/**
+ * One implementation of "may a guest see this folder", used by the public
+ * folder endpoint, the clean-URL download and the folder-link browser alike.
+ * Before this existed, the folder-link path simply forgot to consult the
+ * exclude list and happily served folders that had been hidden.
+ */
+export interface GuestScope {
+  /** Folder the link grants access to. */
+  root: string;
+  /** True when access comes from a public share (not a link). */
+  publicRoot: boolean;
 }
 
-// ─── Public Shared Listing (with folder inheritance) ──────────────────
+export async function guestFolderView(env: Env, requested: string, scope: GuestScope): Promise<GuestFolderView | null> {
+  const path = normalizeFolder(requested);
+  if (path === ROOT) return null;
+  if (!isUnder(path, scope.root)) return null;
 
-export async function listPublicShared(request: Request, env: Env): Promise<Response> {
-  const settings = await getSettings(env);
-  const sharedFolders = await getSharedFolders(env);
-  const excludedFolders = await getExcludedFolders(env);
-  const allFiles = await getStoredFiles(env);
+  const excluded = await getExcludedFolders(env);
+  if (isExcluded(path, excluded)) return null;
 
-  const visibleFolders = Array.from(sharedFolders).filter(sf => !excludedFolders.has(sf));
-
-  const files: Array<{
-    id: string; name: string; size: number; type: string;
-    token: string | null; folder: string; uploadedAt: string;
-  }> = [];
-
-  for (const meta of allFiles) {
-    const hasValidShareLink = !!meta.shareToken && !meta.sharePassword &&
-      (!meta.shareExpiresAt || new Date(meta.shareExpiresAt) >= new Date());
-    const inSharedFolder = isFolderShared(meta.folder, sharedFolders, excludedFolders);
-
-    if (hasValidShareLink && !inSharedFolder) {
-      files.push({
-        id: meta.id, name: meta.name, size: meta.size, type: meta.type,
-        token: meta.shareToken, folder: meta.folder, uploadedAt: meta.uploadedAt,
-      });
-    }
+  if (scope.publicRoot) {
+    const shared = await getSharedFolders(env);
+    if (!isFolderShared(path, shared, excluded)) return null;
   }
 
-  files.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
-  return json({
-    files,
-    sharedFolders: visibleFolders.sort(),
-    settings: { showLoginButton: settings.showLoginButton, siteName: settings.siteName, siteIconUrl: settings.siteIconUrl },
-  });
+  const page = await listDir(env, path, { limit: 1000 });
+  const files = page.objects.map((object) => metaFromObject(object));
+  const subfolders = page.folders.filter((folder) => !isExcluded(folder, excluded));
+
+  return { files, subfolders };
 }
 
-// ─── Public Folder Browse ─────────────────────────────────────────────
-
-export async function browsePublicFolder(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const path = url.searchParams.get('path') || '';
-  const sharedFolders = await getSharedFolders(env);
-  const excludedFolders = await getExcludedFolders(env);
-
-  if (!path) {
-    const visibleFolders = Array.from(sharedFolders).filter(sf => !excludedFolders.has(sf));
-    return json({ files: [], subfolders: visibleFolders.sort(), currentFolder: '' });
-  }
-
-  const isSharedOrChild = isFolderShared(path, sharedFolders, excludedFolders);
-  const isAncestorOfShared = !isSharedOrChild && Array.from(sharedFolders).some(
-    sf => sf.startsWith(path + '/') && !excludedFolders.has(sf)
-  );
-
-  if (!isSharedOrChild && !isAncestorOfShared) {
-    return error('Folder not shared', 403);
-  }
-
-  const allFiles = await getStoredFiles(env);
-  const prefix = path + '/';
-
-  let folderFiles: Array<{
-    id: string; name: string; size: number; type: string;
-    token: string | null; folder: string; uploadedAt: string;
-  }> = [];
-
-  if (isSharedOrChild) {
-    folderFiles = allFiles
-      .filter(f => f.folder === path)
-      .map(f => ({
-        id: f.id, name: f.name, size: f.size, type: f.type,
-        token: f.shareToken || null, folder: f.folder, uploadedAt: f.uploadedAt,
-      }))
-      .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
-  }
-
-  const subfolderSet = new Set<string>();
-
-  if (isAncestorOfShared) {
-    for (const sf of sharedFolders) {
-      if (sf.startsWith(prefix)) {
-        const rest = sf.slice(prefix.length);
-        const slashIdx = rest.indexOf('/');
-        const childName = slashIdx >= 0 ? rest.substring(0, slashIdx) : rest;
-        if (childName) subfolderSet.add(prefix + childName);
-      }
-    }
-  } else {
-    for (const f of allFiles) {
-      if (f.folder.startsWith(prefix)) {
-        const rest = f.folder.slice(prefix.length);
-        const slashIdx = rest.indexOf('/');
-        const childName = slashIdx >= 0 ? rest.substring(0, slashIdx) : rest;
-        if (childName) subfolderSet.add(prefix + childName);
-      }
-    }
-    let cursor: string | undefined;
-    for (;;) {
-      const result = await env.VAULT_KV.list({ prefix: 'folder:' + prefix, limit: 1000, cursor });
-      for (const key of result.keys) {
-        const name = key.name.slice('folder:'.length);
-        if (name.startsWith(prefix)) {
-          const rest = name.slice(prefix.length);
-          const slashIdx = rest.indexOf('/');
-          const childName = slashIdx >= 0 ? rest.substring(0, slashIdx) : rest;
-          if (childName) subfolderSet.add(prefix + childName);
-        }
-      }
-      if (result.list_complete) break;
-      cursor = result.cursor;
-    }
-  }
-
-  for (const ex of excludedFolders) {
-    subfolderSet.delete(ex);
-    for (const sf of subfolderSet) {
-      if (sf.startsWith(ex + '/')) subfolderSet.delete(sf);
-    }
-  }
-
-  return json({ files: folderFiles, subfolders: Array.from(subfolderSet).sort(), currentFolder: path });
+/** Resolve a folder-link token to its scope, honouring expiry. */
+export async function folderLinkScope(env: Env, token: string): Promise<FolderShareLink | null> {
+  const link = await getFolderLinkByToken(env, token);
+  if (!link) return null;
+  if (isExpired(link.expiresAt ?? null)) return null;
+  return link;
 }
 
-// ─── Public File Download (folder-shared files) ──────────────────────
-
-export async function publicDownload(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const parts = url.pathname.split('/');
-  const fileId = parts[parts.length - 1];
-  if (!fileId) return error('File ID required', 400);
-
-  const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + fileId);
-  if (!raw) return error('File not found', 404);
-
-  const meta: FileMeta = JSON.parse(raw);
-
-  const hasPublicLink = !!meta.shareToken && !meta.sharePassword &&
-    (!meta.shareExpiresAt || new Date(meta.shareExpiresAt) >= new Date());
-  const sharedFolders = await getSharedFolders(env);
-  const excludedFolders = await getExcludedFolders(env);
-  const inSharedFolder = isFolderShared(meta.folder, sharedFolders, excludedFolders);
-
-  if (!hasPublicLink && !inSharedFolder) {
-    return error('File not publicly accessible', 403);
-  }
-
-  meta.downloads++;
-  await env.VAULT_KV.put(KV_PREFIX.FILE + meta.id, JSON.stringify(meta));
-  return await serveR2File(
-    request,
-    env.VAULT_BUCKET,
-    meta.key,
-    meta.name,
-    'attachment',
-    'public, max-age=14400',
-    meta.type,
-  ) ?? error('File not found in storage', 404);
-}
+export { isExpired, hashSharePassword };

@@ -155,7 +155,7 @@
       var fileDiv = document.createElement('div');
       fileDiv.className = 'flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50 hover:bg-gray-800 transition-colors group';
 
-      var previewUrl = '/s/' + token + '/folder-preview?fileId=' + file.id;
+      var previewUrl = '/s/' + token + '/folder-preview?key=' + encodeURIComponent(file.key);
       var isImage = file.type && file.type.startsWith('image/');
       var iconHtml = isImage
         ? '<img src="' + previewUrl + '" class="w-10 h-10 rounded-lg object-cover flex-shrink-0" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
@@ -164,7 +164,7 @@
 
       fileDiv.innerHTML = iconHtml +
         '<div class="flex-1 min-w-0"><p class="text-sm text-white truncate">' + escHtml(file.name) + '</p><p class="text-xs text-gray-500">' + formatBytes(file.size) + '</p></div>' +
-        '<a href="/s/' + token + '/folder-download?fileId=' + file.id + '" class="px-3 py-1.5 rounded-lg bg-accent-600 hover:bg-accent-500 text-white text-xs font-medium transition-all opacity-0 group-hover:opacity-100">' +
+        '<a href="/s/' + token + '/folder-download?key=' + encodeURIComponent(file.key) + '" class="px-3 py-1.5 rounded-lg bg-accent-600 hover:bg-accent-500 text-white text-xs font-medium transition-all opacity-0 group-hover:opacity-100">' +
         '<svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg></a>';
       filesEl.appendChild(fileDiv);
     }

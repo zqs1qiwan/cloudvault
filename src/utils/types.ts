@@ -1,36 +1,88 @@
 // ─── Environment Bindings ─────────────────────────────────────────────
 export interface Env extends Cloudflare.Env {
-  ADMIN_PASSWORD: string;   // wrangler secret
-  SESSION_SECRET: string;   // wrangler secret
+  /**
+   * Legacy single-password secret. Only read once, to seed the first account
+   * on an existing deployment; accounts live in KV and are managed by the app.
+   */
+  ADMIN_PASSWORD?: string;
+  /** Optional HMAC key for share-link cookies; falls back to a KV-held secret. */
+  SESSION_SECRET?: string;
 }
 
-// ─── File Metadata (stored in KV) ─────────────────────────────────────
+// ─── File Metadata ────────────────────────────────────────────────────
+//
+// A file is an R2 object; this is a *view* of one, built on demand from the
+// object itself. Nothing here is persisted separately - `key` is the identity
+// (`id` mirrors it for the UI), and everything else comes from R2 headers,
+// `customMetadata.uploadedAt`, or the share record that points at the key.
 export interface FileMeta {
-  id: string;
-  key: string;              // R2 object key (e.g. "photos/sunset.jpg")
-  name: string;             // Original filename
+  id: string;                 // === key
+  key: string;                // R2 object key, also the logical path
+  name: string;
   size: number;
-  type: string;             // MIME type
-  folder: string;           // Virtual folder path (e.g. "photos")
-  uploadedAt: string;       // ISO 8601
+  type: string;               // MIME type
+  folder: string;             // 'root' or 'a/b'
+  uploadedAt: string;         // ISO 8601, preserved across renames
+  etag: string;               // R2 httpEtag - the one validator we publish
   shareToken: string | null;
-  sharePassword: string | null; // bcrypt-style hash (null = no password)
-  shareExpiresAt: string | null; // ISO 8601 or null
+  shareExpiresAt: string | null;
+  hasSharePassword: boolean;
   downloads: number;
 }
 
-// ─── Share Link Info ──────────────────────────────────────────────────
-export interface ShareInfo {
-  fileId: string;
-  token: string;
+// ─── Share Records (KV, one key per token) ────────────────────────────
+export interface ShareRecord {
+  key: string;                // the file this token resolves to
   createdAt: string;
+  passwordHash: string | null;
   expiresAt: string | null;
-  hasPassword: boolean;
+  downloads: number;
 }
+
+export interface FolderShareLink {
+  folder: string;
+  createdAt: string;
+  passwordHash: string | null;
+  expiresAt: string | null;
+}
+
+// ─── Accounts ─────────────────────────────────────────────────────────
+//
+// An account is the only credential in the system. `ADMIN_PASSWORD` was a
+// single shared secret with no username, so it could not be rotated per person
+// and could not be managed at all; accounts replaced it.
+export type AccountRole = 'admin' | 'user';
+
+export interface Account {
+  id: string;
+  username: string;
+  /** Lower-cased username, used as the lookup key (usernames are case-insensitive). */
+  usernameLower: string;
+  role: AccountRole;
+  passwordHash: string;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string | null;
+  /** Set when an admin reset the password, or when it came from a legacy secret. */
+  mustChangePassword: boolean;
+}
+
+/** What the API and the UI are allowed to see about an account. */
+export interface PublicAccount {
+  id: string;
+  username: string;
+  role: AccountRole;
+  createdAt: string;
+  lastLoginAt: string | null;
+  mustChangePassword: boolean;
+}
+
+export const USERNAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{1,30}[a-zA-Z0-9]$/;
 
 // ─── Session ──────────────────────────────────────────────────────────
 export interface Session {
   id: string;
+  userId: string;
   createdAt: string;
   expiresAt: string;
 }
@@ -39,7 +91,6 @@ export interface Session {
 export interface FileListResponse {
   files: FileMeta[];
   cursor: string | null;
-  totalFiles: number;
 }
 
 export interface StatsResponse {
@@ -48,24 +99,6 @@ export interface StatsResponse {
   totalDownloads: number;
   recentUploads: FileMeta[];
   topDownloaded: FileMeta[];
-}
-
-// ─── API Request Types ────────────────────────────────────────────────
-export interface CreateShareRequest {
-  fileId: string;
-  password?: string;
-  expiresInDays?: number;
-}
-
-export interface MultipartCreateResponse {
-  uploadId: string;
-  key: string;
-}
-
-export interface MultipartCompleteRequest {
-  uploadId: string;
-  key: string;
-  parts: { partNumber: number; etag: string }[];
 }
 
 // ─── Site Settings ────────────────────────────────────────────────────
@@ -85,12 +118,19 @@ export const DEFAULT_SETTINGS: SiteSettings = {
 
 // ─── KV Key Patterns ─────────────────────────────────────────────────
 export const KV_PREFIX = {
-  FILE: 'file:',
+  /** Legacy file index. Never read by this code; purged by the sync endpoint. */
+  LEGACY_FILE: 'file:',
+  /** Legacy folder index. Same. */
+  LEGACY_FOLDER: 'folder:',
   SHARE: 'share:',
   FOLDER_SHARE: 'foldershare:',
   FOLDER_SHARE_EXCLUDE: 'foldershare-exclude:',
   FOLDER_SHARE_LINK: 'foldersharelink:',
   SESSION: 'session:',
-  STATS: 'stats:',
   SETTINGS: 'settings:',
+  RATE_LIMIT: 'rl:',
+  /** `user:<id>` - the account record. */
+  ACCOUNT: 'user:',
+  /** `userlookup:<lowercase username>` - username to account id. */
+  ACCOUNT_LOOKUP: 'userlookup:',
 } as const;

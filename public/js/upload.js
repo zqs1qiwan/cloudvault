@@ -2,7 +2,10 @@ window.UploadManager = {
   queue: [],
   active: 0,
   maxConcurrent: 3,
-  chunkSize: 5 * 1024 * 1024,
+  /* R2 requires parts of at least 5MB (except the last); 16MB keeps the part
+     count low enough that a 1GB file is 64 requests instead of 200. */
+  chunkSize: 16 * 1024 * 1024,
+  partConcurrency: 3,
 
   addFiles(files, folder) {
     for (const file of files) {
@@ -45,7 +48,7 @@ window.UploadManager = {
       }
       item.status = 'done';
       item.progress = 100;
-      window.dispatchEvent(new CustomEvent('upload-complete', { detail: { name: file.name } }));
+      window.dispatchEvent(new CustomEvent('upload-complete', { detail: { name: file.name, size: file.size } }));
     } catch (err) {
       item.status = 'error';
       window.dispatchEvent(new CustomEvent('upload-error', { detail: { name: file.name, error: err.message } }));
@@ -104,33 +107,47 @@ window.UploadManager = {
       item.multipart = session;
 
       const parts = [];
-      for (let i = 0; i < totalParts; i++) {
-        const start = i * this.chunkSize;
-        const end = Math.min(start + this.chunkSize, file.size);
-        const chunk = file.slice(start, end);
+      let nextPart = 0;
+      let finished = 0;
 
-        const partUrl = `/api/files/upload?action=mpu-upload&uploadId=${encodeURIComponent(uploadId)}&partNumber=${i + 1}&key=${encodeURIComponent(key)}`;
-        let partRes = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            partRes = await this.fetchWithTimeout(
-              partUrl,
-              { method: 'PUT', body: chunk, credentials: 'same-origin', redirect: 'manual' },
-              5 * 60 * 1000
-            );
-            if (partRes.ok) break;
-          } catch {
-            if (attempt === 3) throw new Error(`Part ${i + 1} timed out`);
+      const uploadOnePart = async () => {
+        while (nextPart < totalParts) {
+          const i = nextPart++;
+          const start = i * this.chunkSize;
+          const end = Math.min(start + this.chunkSize, file.size);
+          const chunk = file.slice(start, end);
+
+          const partUrl = `/api/files/upload?action=mpu-upload&uploadId=${encodeURIComponent(uploadId)}&partNumber=${i + 1}&key=${encodeURIComponent(key)}`;
+          let partRes = null;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              partRes = await this.fetchWithTimeout(
+                partUrl,
+                { method: 'PUT', body: chunk, credentials: 'same-origin', redirect: 'manual' },
+                5 * 60 * 1000
+              );
+              if (partRes.ok) break;
+            } catch {
+              if (attempt === 3) throw new Error(`Part ${i + 1} timed out`);
+            }
+            if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 750));
           }
-          if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 750));
-        }
-        if (!partRes?.ok) throw new Error(`Failed to upload part ${i + 1}`);
-        const partData = await partRes.json();
-        parts.push({ partNumber: i + 1, etag: partData.etag });
+          if (!partRes?.ok) throw new Error(`Failed to upload part ${i + 1}`);
+          const partData = await partRes.json();
 
-        item.progress = Math.round(((i + 1) / totalParts) * 100);
-        window.dispatchEvent(new CustomEvent('upload-progress'));
-      }
+          finished++;
+          item.progress = Math.round((finished / totalParts) * 100);
+          window.dispatchEvent(new CustomEvent('upload-progress'));
+          parts.push({ partNumber: i + 1, etag: partData.etag });
+        }
+      };
+
+      // Parts used to go up one at a time, so throughput was one connection's
+      // worth no matter how good the link was.
+      await Promise.all(
+        Array.from({ length: Math.min(this.partConcurrency, totalParts) }, () => uploadOnePart())
+      );
+      parts.sort((a, b) => a.partNumber - b.partNumber);
 
       const completeRes = await this.fetchWithTimeout('/api/files/upload?action=mpu-complete', {
         method: 'POST',

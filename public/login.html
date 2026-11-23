@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <title>CloudVault — Login</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName+' — Login'}catch{}</script>
   <link rel="stylesheet" href="/css/tailwind.css">
@@ -42,10 +41,13 @@
           type="text"
           id="username"
           name="username"
-          value="root"
           autocomplete="username"
-          readonly
-          class="w-full px-4 py-3 rounded-md bg-[var(--bg-primary)] border border-[var(--border)] text-[var(--text-secondary)] cursor-default"
+          autocapitalize="none"
+          spellcheck="false"
+          placeholder="Username"
+          required
+          autofocus
+          class="w-full px-4 py-3 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border-light)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-transparent transition-all"
         >
       </div>
 
@@ -58,7 +60,6 @@
           autocomplete="current-password"
           placeholder="Enter your password"
           required
-          autofocus
           class="w-full px-4 py-3 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border-light)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-transparent transition-all"
         >
       </div>
@@ -72,6 +73,8 @@
         <svg id="btn-spinner" class="hidden spinner w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
       </button>
     </form>
+
+    <p class="text-center text-[var(--text-muted)] text-xs mt-5">Upgrading an older single-password vault? Sign in as <strong>root</strong> with the password you used before.</p>
 
     <p class="text-center text-[var(--text-muted)] text-xs mt-6">Powered by <a href="https://github.com/zqs1qiwan/cloudvault" target="_blank" rel="noopener" class="hover:text-[var(--text-secondary)] underline">zqs1qiwan/CloudVault</a></p>
   </div>
@@ -121,8 +124,12 @@
           return;
         }
 
-        const data = await res.json().catch(() => ({ error: 'Invalid password' }));
-        errorBox.textContent = data.error || 'Invalid password';
+        const data = await res.json().catch(() => ({ error: 'Invalid username or password' }));
+        if (data.setup) {
+          window.location.href = '/setup';
+          return;
+        }
+        errorBox.textContent = data.error || 'Invalid username or password';
         errorBox.classList.remove('hidden');
         form.classList.add('shake');
         setTimeout(() => form.classList.remove('shake'), 500);

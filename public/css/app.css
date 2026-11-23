@@ -205,6 +205,61 @@ html.light .glow-orbs::after { background: rgba(var(--color-accent-rgb), 0.02); 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 
+/* ─── App header & toolbar ─────────────────────────────────────────── */
+/*
+ * Both bars used to be plain flex rows whose right-hand cluster contained
+ * text of variable width ("3 files · 1.2 MB", the account name). Whenever that
+ * text grew, or the window narrowed, buttons were pushed around and wrapped
+ * onto new lines. The layout is now: one flexible text area that truncates,
+ * and a cluster of fixed-size controls that never shrinks.
+ */
+.header { height: 56px; gap: 12px; }
+.header-brand { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.header-title { max-width: 12rem; }
+/* Counter and storage figure: the only stretchy, truncating thing in the bar,
+   so the control cluster behind it can never be displaced. */
+.header-meta {
+  flex: 1 1 auto; min-width: 0; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis; text-align: right;
+  font-size: 12px; color: var(--text-muted); margin: 0 12px;
+}
+.header-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; white-space: nowrap; }
+.header-btn {
+  width: 36px; height: 36px; flex: 0 0 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md);
+  background: none; border: none; cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.toolbar { display: flex; align-items: center; gap: 8px; }
+.toolbar-path { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
+.toolbar-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; flex-wrap: nowrap; }
+.toolbar-actions > * { flex-shrink: 0; }
+
+/* Search field width is set here rather than with utility classes: the bundled
+   Tailwind subset does not ship w-32/w-40/w-56, so those silently did nothing. */
+.toolbar-search { width: 209px; }
+.toolbar-search input { width: 100%; }
+
+/* Labels that may be dropped when the window gets small. Their breakpoints are
+   declared here for the same reason: `lg:inline` is absent from the subset, so
+   the `hidden lg:inline` trick would have hidden them at every width. */
+.toolbar-label-wide { display: inline; }
+@media (max-width: 900px) { .toolbar-label-wide { display: none; } .toolbar-search { width: 160px; } }
+@media (max-width: 520px) { .toolbar-search { width: 112px; } }
+
+/* Narrow: the path gets its own row instead of fighting the controls for
+   space. Controls may wrap as a group, but only whole buttons, never mid-label
+   (labels are already hidden by their own breakpoints). */
+@media (max-width: 900px) {
+  .toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .toolbar-path { overflow-x: auto; scrollbar-width: none; }
+  .toolbar-path::-webkit-scrollbar { display: none; }
+  .toolbar-actions { flex-wrap: wrap; }
+}
+
 /* ─── Breadcrumb ───────────────────────────────────────────────────── */
 .breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.1s; font-family: var(--font-mono); font-size: 13px; }
 .breadcrumb a:hover { color: var(--accent); }

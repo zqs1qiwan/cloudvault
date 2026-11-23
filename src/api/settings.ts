@@ -1,7 +1,8 @@
-import { Env, SiteSettings, DEFAULT_SETTINGS, KV_PREFIX } from '../utils/types';
-import { json, error } from '../utils/response';
+import type { Env, SiteSettings } from '../utils/types';
+import { DEFAULT_SETTINGS, KV_PREFIX } from '../utils/types';
+import { json } from '../lib/http';
 
-const SETTINGS_KEY = KV_PREFIX.SETTINGS + 'site';
+export const SETTINGS_KEY = KV_PREFIX.SETTINGS + 'site';
 
 export async function getSettings(env: Env): Promise<SiteSettings> {
   const raw = await env.VAULT_KV.get(SETTINGS_KEY);
@@ -13,25 +14,32 @@ export async function getSettings(env: Env): Promise<SiteSettings> {
   }
 }
 
-export async function handleGetSettings(request: Request, env: Env): Promise<Response> {
+export async function handleGetSettings(_request: Request, env: Env): Promise<Response> {
   return json(await getSettings(env));
 }
 
 export async function handlePutSettings(request: Request, env: Env): Promise<Response> {
-  const body = await request.json<Partial<SiteSettings>>();
+  const body = await request.json<Partial<SiteSettings>>().catch(() => ({}) as Partial<SiteSettings>);
   const current = await getSettings(env);
 
-  if (typeof body.guestPageEnabled === 'boolean') {
-    current.guestPageEnabled = body.guestPageEnabled;
-  }
-  if (typeof body.showLoginButton === 'boolean') {
-    current.showLoginButton = body.showLoginButton;
-  }
-  if (typeof body.siteName === 'string') {
-    current.siteName = body.siteName.trim().slice(0, 50) || 'CloudVault';
-  }
+  if (typeof body.guestPageEnabled === 'boolean') current.guestPageEnabled = body.guestPageEnabled;
+  if (typeof body.showLoginButton === 'boolean') current.showLoginButton = body.showLoginButton;
+  if (typeof body.siteName === 'string') current.siteName = body.siteName.trim().slice(0, 50) || 'CloudVault';
+
   if (typeof body.siteIconUrl === 'string') {
-    current.siteIconUrl = body.siteIconUrl.trim().slice(0, 500);
+    const url = body.siteIconUrl.trim().slice(0, 500);
+    if (url) {
+      // Only http(s) survives: the value ends up in a <link rel=icon> and a
+      // JSON island, and `javascript:` has no business reaching either.
+      try {
+        const parsed = new URL(url);
+        current.siteIconUrl = parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.toString() : '';
+      } catch {
+        current.siteIconUrl = '';
+      }
+    } else {
+      current.siteIconUrl = '';
+    }
   }
 
   await env.VAULT_KV.put(SETTINGS_KEY, JSON.stringify(current));

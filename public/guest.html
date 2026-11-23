@@ -3,14 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <title>CloudVault — Shared Files</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName+' — Shared Files'}catch{}</script>
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/app.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+  <script defer src="/js/vendor/alpine.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
@@ -288,8 +287,8 @@ function guestPage() {
     },
 
     getDownloadUrl(file) {
-      return file.token
-        ? '/s/' + file.token + '/download'
+      return file.shareToken
+        ? '/s/' + file.shareToken + '/download'
         : '/' + (file.folder + '/' + file.name).split('/').map(encodeURIComponent).join('/');
     },
 

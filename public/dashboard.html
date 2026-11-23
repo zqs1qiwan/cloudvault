@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Loaded asynchronously: when fonts.googleapis.com is unreachable (common
+       in mainland China) a render-blocking link leaves the whole page blank. -->
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <title>CloudVault</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName}catch{}</script>
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/app.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1/themes/prism-tomorrow.min.css">
+  <link rel="stylesheet" href="/css/vendor/prism-tomorrow.min.css">
 </head>
 <body class="min-h-screen" style="font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary)">
 <div class="glow-orbs"></div>
@@ -19,45 +20,53 @@
 
   <!-- HEADER -->
   <header class="sticky top-0 z-50 border-b" style="background:var(--bg-secondary);border-color:var(--border)">
-    <div class="flex items-center justify-between h-14 px-4">
-      <div class="flex items-center gap-3">
-        <button @click="sidebarOpen = !sidebarOpen" class="md:hidden p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)]">
+    <div class="header flex items-center justify-between px-4">
+      <div class="header-brand flex items-center gap-3 min-w-0">
+        <button @click="sidebarOpen = !sidebarOpen" class="md:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-[var(--bg-tertiary)]">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 min-w-0">
           <template x-if="!_branding.siteIconUrl">
-            <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:var(--accent-soft)">
+            <div class="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center" style="background:var(--accent-soft)">
               <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
             </div>
           </template>
           <template x-if="_branding.siteIconUrl">
-            <div class="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden" style="background:var(--accent-soft)">
+            <div class="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center overflow-hidden" style="background:var(--accent-soft)">
               <img :src="_branding.siteIconUrl" class="w-full h-full object-contain">
             </div>
           </template>
-          <span class="font-semibold text-sm hidden sm:inline" x-text="_branding.siteName"></span>
+          <span class="font-semibold text-sm hidden sm:inline truncate header-title" x-text="_branding.siteName"></span>
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
-        <div class="hidden sm:flex items-center gap-3 text-xs mr-4" style="color:var(--text-muted)">
-          <span x-text="stats.totalFiles + ' files'"></span>
-          <span>&middot;</span>
-          <span x-text="formatBytes(stats.totalSize)"></span>
-        </div>
-        <button @click="toggleDarkMode()" class="p-2 rounded-lg transition-colors" style="color:var(--text-muted)" :style="'&:hover{background:var(--bg-hover)}'">
+      <div class="header-meta hidden md:block" x-text="stats.totalFiles + ' files · ' + formatBytes(stats.totalSize)" title="Files and total size in this vault"></div>
+
+      <div class="header-actions">
+        <button @click="toggleDarkMode()" class="header-btn" style="color:var(--text-muted)" title="Toggle theme">
           <svg x-show="darkMode" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
           <svg x-show="!darkMode" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"/></svg>
         </button>
-        <button @click="settingsModal.show = true; loadSettings()" class="p-2 rounded-lg transition-colors" style="color:var(--text-muted)" title="Settings">
+        <button @click="settingsModal.show = true; loadSettings()" class="header-btn" style="color:var(--text-muted)" title="Settings">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.004.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
         </button>
-        <button @click="logout()" class="p-2 rounded-lg transition-colors" style="color:var(--text-muted)" title="Logout">
+        <button x-show="me.role === 'admin'" x-cloak @click="openUsers()" class="header-btn" style="color:var(--text-muted)" title="Users">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 2.331m-1.856-6.858a3.375 3.375 0 10-3.213-5.963 3.375 3.375 0 003.213 5.963zM9 13.5a4.5 4.5 0 110-9 4.5 4.5 0 010 9zm0 0a8.25 8.25 0 00-8.25 8.25v.75h16.5v-.75A8.25 8.25 0 009 13.5z"/></svg>
+        </button>
+        <button @click="openAccount()" class="header-btn" style="color:var(--text-muted)" :title="'Signed in as ' + me.username">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.612 8.612 0 0112 21a8.612 8.612 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        </button>
+        <button @click="logout()" class="header-btn" style="color:var(--text-muted)" title="Logout">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/></svg>
         </button>
       </div>
     </div>
   </header>
+
+  <div x-cloak x-show="me.mustChangePassword" class="flex items-center gap-2 px-4 py-2 text-xs border-b" style="background:rgba(234,179,8,.12);border-color:rgba(234,179,8,.35);color:#facc15">
+    <span>This account still uses the password from the old deployment secret.</span>
+    <button @click="openAccount()" class="underline">Set a new password</button>
+  </div>
 
   <div class="flex" style="min-height:calc(100vh - 56px)">
 
@@ -83,9 +92,9 @@
     <main class="flex-1 flex flex-col min-w-0">
 
       <!-- ACTION BAR -->
-      <div class="flex flex-wrap items-center gap-2 p-3 border-b" style="border-color:var(--border)">
+      <div class="toolbar p-3 border-b" style="border-color:var(--border)">
         <!-- Breadcrumb -->
-        <div class="breadcrumb flex items-center gap-1 text-sm mr-auto flex-wrap">
+        <div class="breadcrumb toolbar-path flex items-center gap-1 text-sm">
           <a href="#" @click.prevent="navigateFolder('root')">Home</a>
           <template x-for="(part, i) in currentFolder === 'root' ? [] : currentFolder.split('/')" :key="i">
             <span class="flex items-center gap-1">
@@ -95,16 +104,16 @@
           </template>
         </div>
 
-        <div class="flex items-center gap-2">
-          <form role="search" autocomplete="off" @submit.prevent class="relative">
+        <div class="toolbar-actions">
+          <form role="search" autocomplete="off" @submit.prevent class="relative toolbar-search">
             <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-            <input id="file-search" name="q" type="search" role="searchbox" aria-label="Search files" placeholder="Search files..." autocomplete="off" autocapitalize="none" spellcheck="false" readonly onfocus="this.removeAttribute('readonly')" data-1p-ignore data-lpignore="true" data-bwignore="true" data-form-type="other" x-model="searchQuery" @input.debounce.300ms="fetchFiles()" class="pl-10 pr-3 py-1.5 text-sm w-44 sm:w-56">
+            <input id="file-search" name="q" type="search" role="searchbox" aria-label="Search files" placeholder="Search files..." autocomplete="off" autocapitalize="none" spellcheck="false" readonly onfocus="this.removeAttribute('readonly')" data-1p-ignore data-lpignore="true" data-bwignore="true" data-form-type="other" x-model="searchQuery" @input.debounce.300ms="fetchFiles()" class="pl-10 pr-3 py-1.5 text-sm">
           </form>
 
           <div class="relative" x-data="{ open: false }">
-            <button @click="open = !open" class="btn-secondary text-xs flex items-center gap-1.5">
+            <button @click="open = !open" class="btn-secondary text-xs flex items-center gap-1.5 whitespace-nowrap" title="Filter by file type" aria-label="Filter by file type">
               <span class="type-dot" :class="'type-' + typeFilter"></span>
-              <span x-text="typeFilter === 'all' ? 'All Types' : typeFilter.charAt(0).toUpperCase() + typeFilter.slice(1)"></span>
+              <span class="hidden sm:inline" x-text="typeFilter === 'all' ? 'All Types' : typeFilter.charAt(0).toUpperCase() + typeFilter.slice(1)"></span>
               <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
             </button>
             <div x-show="open" @click.away="open = false" x-transition class="type-dropdown">
@@ -117,23 +126,23 @@
             </div>
           </div>
 
-          <button @click="showNewFolderModal = true" class="btn-secondary text-xs flex items-center gap-1">
+          <button @click="showNewFolderModal = true" class="btn-secondary text-xs flex items-center gap-1 whitespace-nowrap" title="New folder">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
-            <span class="hidden sm:inline">Folder</span>
+            <span class="toolbar-label-wide">Folder</span>
           </button>
 
-          <button @click="syncR2()" :disabled="syncing" class="btn-secondary text-xs flex items-center gap-1" title="Import changes made directly in R2">
+          <button @click="syncR2()" :disabled="syncing" class="btn-secondary text-xs flex items-center gap-1 whitespace-nowrap" title="Import changes made directly in R2">
             <svg class="w-3.5 h-3.5" :class="{'animate-spin': syncing}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            <span class="hidden sm:inline" x-text="syncing ? 'Syncing' : 'Sync R2'"></span>
+            <span class="toolbar-label-wide" x-text="syncing ? 'Syncing' : 'Sync R2'"></span>
           </button>
 
-          <label class="btn-primary text-xs flex items-center gap-1 cursor-pointer">
+          <label class="btn-primary text-xs flex items-center gap-1 cursor-pointer whitespace-nowrap" title="Upload files" aria-label="Upload files">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-            <span>Upload</span>
+            <span class="hidden sm:inline">Upload</span>
             <input type="file" multiple class="hidden" @change="handleFileSelect($event)">
           </label>
 
-          <button @click="toggleView()" class="p-1.5 rounded-lg" style="color:var(--text-muted);background:var(--bg-tertiary)">
+          <button @click="toggleView()" class="p-1.5 rounded-lg" style="color:var(--text-muted);background:var(--bg-tertiary)" title="Toggle view">
             <svg x-show="view === 'grid'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/></svg>
             <svg x-show="view === 'list'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
           </button>
@@ -178,7 +187,7 @@
               </div>
               <div class="w-full aspect-square rounded-lg flex items-center justify-center mb-2 overflow-hidden" style="background:var(--bg-tertiary)">
                 <template x-if="file.type.startsWith('image/')">
-                  <img :src="'/api/files/' + file.id + '/thumbnail'" class="w-full h-full object-contain" loading="lazy" @error="$el.style.display='none'">
+                  <img :src="'/api/files/thumbnail?key=' + encodeURIComponent(file.key)" class="w-full h-full object-contain" loading="lazy" decoding="async" @error="$el.style.display='none'">
                 </template>
                 <template x-if="!file.type.startsWith('image/')">
                   <span class="text-3xl" x-text="getFileIcon(file.type, file.name)"></span>
@@ -240,6 +249,15 @@
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination: a folder is listed in pages so a huge directory
+             cannot turn into one multi-megabyte JSON response. -->
+        <div x-show="nextCursor" x-cloak class="mt-6 flex justify-center">
+          <button @click="loadMore()" :disabled="loadingMore" class="btn-primary text-sm">
+            <span x-show="!loadingMore">Load more</span>
+            <span x-show="loadingMore">Loading…</span>
+          </button>
+        </div>
       </div>
     </main>
   </div>
@@ -276,7 +294,7 @@
           </div>
           <div class="flex items-center justify-between">
             <span class="text-sm" style="color:var(--text-muted)" x-text="shareModal.file.downloads + ' downloads'"></span>
-            <button @click="revokeShare(shareModal.file.id)" class="btn-danger text-xs">Revoke Link</button>
+            <button @click="revokeShare(shareModal.file.key)" class="btn-danger text-xs">Revoke Link</button>
           </div>
         </div>
       </template>
@@ -563,7 +581,7 @@
       <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
     </button>
     <div class="lightbox-content">
-      <img :src="lightbox.images[lightbox.currentIndex] ? '/api/files/' + lightbox.images[lightbox.currentIndex].id + '/preview' : ''" class="lightbox-img" @click.stop>
+      <img :src="lightbox.images[lightbox.currentIndex] ? '/api/files/preview?key=' + encodeURIComponent(lightbox.images[lightbox.currentIndex].key) : ''" class="lightbox-img" @click.stop>
     </div>
     <button @click="lightboxNext()" class="lightbox-nav lightbox-next">
       <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
@@ -571,6 +589,79 @@
     <div class="lightbox-info">
       <span x-text="lightbox.images[lightbox.currentIndex]?.name"></span>
       <span style="color:var(--text-muted)" x-text="(lightbox.currentIndex + 1) + ' / ' + lightbox.images.length"></span>
+    </div>
+  </div>
+
+  <!-- USERS MODAL -->
+  <div x-cloak x-show="usersModal.show" x-transition class="modal-backdrop" @click.self="usersModal.show = false">
+    <div class="modal-content" style="max-width:34rem">
+      <h3 class="text-lg font-semibold mb-1">Users</h3>
+      <p class="text-xs mb-3" style="color:var(--text-muted)">All accounts share this vault. Administrators can manage settings and people.</p>
+
+      <p x-show="usersModal.error" class="text-xs mb-2" style="color:var(--danger)" x-text="usersModal.error"></p>
+
+      <div class="max-h-56 overflow-y-auto mb-3">
+        <template x-for="u in usersModal.users" :key="u.id">
+          <div class="flex items-center gap-2 py-2 border-b text-sm" style="border-color:var(--border)">
+            <span class="flex-1 truncate" x-text="u.username"></span>
+            <span class="badge" x-text="u.role"></span>
+            <select class="text-xs" :value="u.role" @change="changeUserRole(u, $event.target.value)">
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+            <button @click="openResetPassword(u)" class="btn-secondary text-xs">Reset</button>
+            <button @click="deleteUser(u)" class="btn-danger text-xs">Delete</button>
+          </div>
+        </template>
+        <p x-show="usersModal.users.length === 0" class="text-xs py-3" style="color:var(--text-muted)">No accounts loaded.</p>
+      </div>
+
+      <div class="pt-3 border-t" style="border-color:var(--border)">
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          <input type="text" x-model="usersModal.newUsername" placeholder="username" class="text-sm" autocapitalize="none" autocomplete="off">
+          <input type="password" x-model="usersModal.newPassword" placeholder="password (8+)" class="text-sm" autocomplete="new-password">
+        </div>
+        <div class="flex items-center gap-2">
+          <select x-model="usersModal.newRole" class="text-xs">
+            <option value="user">user</option>
+            <option value="admin">admin</option>
+          </select>
+          <button @click="createUser()" class="btn-primary text-xs">Add user</button>
+          <button @click="usersModal.show = false" class="btn-secondary text-xs ml-auto">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESET PASSWORD MODAL -->
+  <div x-cloak x-show="resetModal.show" x-transition class="modal-backdrop" @click.self="resetModal.show = false">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-2">Reset password</h3>
+      <p class="text-sm mb-3" style="color:var(--text-secondary)" x-text="'Account: ' + (resetModal.user?.username || '')"></p>
+      <input type="password" x-model="resetModal.password" placeholder="New password (8+)" class="w-full mb-2 text-sm" autocomplete="new-password" @keydown.enter="confirmResetPassword()">
+      <p x-show="resetModal.error" class="text-xs mb-2" style="color:var(--danger)" x-text="resetModal.error"></p>
+      <p class="text-xs mb-4" style="color:var(--text-muted)">Their active sessions are signed out; they will be asked to set a new password after signing in.</p>
+      <div class="flex gap-2 justify-end">
+        <button @click="resetModal.show = false" class="btn-secondary text-sm">Cancel</button>
+        <button @click="confirmResetPassword()" class="btn-primary text-sm">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCOUNT MODAL -->
+  <div x-cloak x-show="accountModal.show" x-transition class="modal-backdrop" @click.self="accountModal.show = false">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-1">Change password</h3>
+      <p class="text-xs mb-3" style="color:var(--text-muted)" x-text="'Signed in as ' + me.username + ' (' + me.role + ')'"></p>
+      <input type="password" x-model="accountModal.current" placeholder="Current password" class="w-full mb-2 text-sm" autocomplete="current-password">
+      <input type="password" x-model="accountModal.next" placeholder="New password (8+)" class="w-full mb-2 text-sm" autocomplete="new-password">
+      <input type="password" x-model="accountModal.confirm" placeholder="Repeat new password" class="w-full mb-2 text-sm" autocomplete="new-password" @keydown.enter="savePassword()">
+      <p x-show="accountModal.error" class="text-xs mb-2" style="color:var(--danger)" x-text="accountModal.error"></p>
+      <p class="text-xs mb-4" style="color:var(--text-muted)">Other devices are signed out; this one stays signed in.</p>
+      <div class="flex gap-2 justify-end">
+        <button @click="accountModal.show = false" class="btn-secondary text-sm">Cancel</button>
+        <button @click="savePassword()" class="btn-primary text-sm">Update</button>
+      </div>
     </div>
   </div>
 
@@ -599,12 +690,12 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1/prism.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1/plugins/autoloader/prism-autoloader.min.js"></script>
+<script src="/js/vendor/marked.min.js"></script>
+<script src="/js/vendor/purify.min.js"></script>
+<script src="/js/vendor/prism-core.min.js"></script>
+<script src="/js/vendor/prism-langs.min.js"></script>
 <script src="/js/upload.js"></script>
 <script src="/js/app.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+<script defer src="/js/vendor/alpine.min.js"></script>
 </body>
 </html>

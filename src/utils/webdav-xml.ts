@@ -1,24 +1,27 @@
-import { FileMeta } from './types';
-import { getMimeType } from './response';
+import type { FileMeta } from '../utils/types';
+import { getMimeType } from '../lib/mime';
+import { ROOT, keyToDavHref } from '../lib/paths';
 
-const DAV_ENDPOINT = '/dav/';
-
-export function escapeXml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export function escapeXml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 export function multistatusResponse(items: string[]): Response {
-  const body = '<?xml version="1.0" encoding="utf-8" ?>\n<D:multistatus xmlns:D="DAV:">\n' + items.join('\n') + '\n</D:multistatus>';
+  const body = `<?xml version="1.0" encoding="utf-8" ?>\n<D:multistatus xmlns:D="DAV:">\n${items.join('\n')}\n</D:multistatus>`;
   return new Response(body, {
     status: 207,
-    headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+    headers: {
+      'Content-Type': 'application/xml; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 }
 
 export function propstatEntry(href: string, props: Record<string, string>, isCollection: boolean): string {
   const propLines = Object.entries(props)
-    .filter(([, v]) => v !== undefined && v !== null)
-    .map(([k, v]) => `      <D:${k}>${v}</D:${k}>`)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([name, value]) => `      <D:${name}>${value}</D:${name}>`)
     .join('\n');
 
   const resourceType = isCollection ? '<D:collection/>' : '';
@@ -36,19 +39,15 @@ ${propLines}
 }
 
 /**
- * The one ETag every WebDAV response must agree on.
+ * The one ETag every WebDAV response publishes, taken straight from the object.
  *
- * PROPFIND used to publish the bare file id while GET published R2's object
- * ETag (the content MD5), so a client that read `getetag` from PROPFIND and
- * sent it back as `If-Match` could never match: R2 compared the UUID with the
- * MD5 and answered 412. Deriving the tag from the identity *and* the upload
- * time keeps it consistent across PROPFIND/GET/HEAD while still changing when
- * the bytes change (an overwrite refreshes `uploadedAt`).
+ * It used to be synthesized from the file id plus an upload timestamp, which
+ * meant PROPFIND and GET could only agree if the metadata matched the object
+ * exactly - and when it didn't, `If-Match` answered 412 and clients re-uploaded
+ * forever. R2's content ETag cannot disagree with R2.
  */
 export function fileEtag(file: FileMeta): string {
-  const uploaded = Date.parse(file.uploadedAt);
-  const stamp = Number.isFinite(uploaded) ? uploaded : 0;
-  return `"${file.id}-${stamp}"`;
+  return file.etag.startsWith('"') ? file.etag : `"${file.etag}"`;
 }
 
 export function fileToProps(file: FileMeta): Record<string, string> {
@@ -63,19 +62,18 @@ export function fileToProps(file: FileMeta): Record<string, string> {
 }
 
 export function fileToHref(file: FileMeta): string {
-  const path = file.folder === 'root' ? file.name : file.folder + '/' + file.name;
-  return DAV_ENDPOINT + encodeURI(path);
+  return keyToDavHref(file.key);
 }
 
-export function folderToProps(name: string, createdAt?: string): Record<string, string> {
-  const date = createdAt ? new Date(createdAt) : new Date();
+export function folderToProps(folderPath: string, modifiedAt?: string): Record<string, string> {
+  const date = modifiedAt ? new Date(modifiedAt) : new Date();
   return {
-    displayname: escapeXml(name.split('/').pop() || name),
+    displayname: escapeXml(folderPath === ROOT ? '/dav' : folderPath.split('/').pop() ?? folderPath),
     getlastmodified: date.toUTCString(),
     creationdate: date.toISOString(),
   };
 }
 
 export function folderToHref(folderPath: string): string {
-  return DAV_ENDPOINT + (folderPath ? encodeURI(folderPath) + '/' : '');
+  return folderPath === ROOT ? '/dav/' : keyToDavHref(folderPath, true);
 }

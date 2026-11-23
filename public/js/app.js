@@ -17,6 +17,8 @@ function cloudvault() {
     showNewFolderModal: false,
     newFolderName: '',
     loading: true,
+    loadingMore: false,
+    nextCursor: null,
     syncing: false,
     uploads: [],
     sidebarOpen: false,
@@ -34,6 +36,10 @@ function cloudvault() {
     previewModal: { show: false, file: null, content: '', loading: false },
     lightbox: { show: false, images: [], currentIndex: 0 },
     folderShareLinkModal: { show: false, folder: '', token: null, password: '', expiresInDays: 0, hasPassword: false, expiresAt: null },
+    me: { username: '', role: 'user', mustChangePassword: false },
+    usersModal: { show: false, users: [], error: '', newUsername: '', newPassword: '', newRole: 'user' },
+    accountModal: { show: false, current: '', next: '', confirm: '', error: '' },
+    resetModal: { show: false, user: null, password: '', error: '' },
 
     async init() {
       if (localStorage.getItem('cv-dark') === 'false') {
@@ -47,8 +53,139 @@ function cloudvault() {
       this.setupUploadEvents();
       this.setupTreeEvents();
 
+      await this.loadMe();
       await this.fetchBootstrap();
       this.loading = false;
+    },
+
+    // ── Account and user management ───────────────────────────────────
+
+    async loadMe() {
+      const res = await this.apiFetch('/api/account');
+      if (!res || !res.ok) return;
+      const data = await res.json();
+      this.me = data.account || this.me;
+      if (this.me.mustChangePassword) {
+        this.showToast('Set a new password for this account', 'info');
+      }
+    },
+
+    openAccount() {
+      this.accountModal = { show: true, current: '', next: '', confirm: '', error: '' };
+    },
+
+    async savePassword() {
+      const modal = this.accountModal;
+      modal.error = '';
+      if (modal.next !== modal.confirm) { modal.error = 'Passwords do not match'; return; }
+      if (modal.next.length < 8) { modal.error = 'New password must be at least 8 characters'; return; }
+      const res = await this.apiFetch('/api/account/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: modal.current, newPassword: modal.next }),
+      });
+      if (!res) return;
+      if (res.ok) {
+        this.me.mustChangePassword = false;
+        modal.show = false;
+        this.showToast('Password updated', 'success');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        modal.error = data.error || 'Could not update password';
+      }
+    },
+
+    async openUsers() {
+      this.usersModal.show = true;
+      this.usersModal.error = '';
+      this.usersModal.newUsername = '';
+      this.usersModal.newPassword = '';
+      this.usersModal.newRole = 'user';
+      await this.loadUsers();
+    },
+
+    async loadUsers() {
+      const res = await this.apiFetch('/api/users');
+      if (!res || !res.ok) { this.usersModal.error = 'Could not load users'; return; }
+      const data = await res.json();
+      this.usersModal.users = data.users || [];
+    },
+
+    async createUser() {
+      const modal = this.usersModal;
+      modal.error = '';
+      if (!modal.newUsername.trim()) { modal.error = 'Username is required'; return; }
+      if (modal.newPassword.length < 8) { modal.error = 'Password must be at least 8 characters'; return; }
+      const res = await this.apiFetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: modal.newUsername.trim(), password: modal.newPassword, role: modal.newRole }),
+      });
+      if (!res) return;
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        modal.error = data.error || 'Could not create user';
+        return;
+      }
+      modal.newUsername = '';
+      modal.newPassword = '';
+      await this.loadUsers();
+      this.showToast('User created', 'success');
+    },
+
+    async changeUserRole(user, role) {
+      if (role === user.role) return;
+      const res = await this.apiFetch('/api/users/' + user.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      if (!res) return;
+      if (res.ok) {
+        await this.loadUsers();
+        this.showToast('Role updated', 'success');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        this.usersModal.error = data.error || 'Could not change role';
+        await this.loadUsers();
+      }
+    },
+
+    openResetPassword(user) {
+      this.resetModal = { show: true, user, password: '', error: '' };
+    },
+
+    async confirmResetPassword() {
+      const modal = this.resetModal;
+      modal.error = '';
+      if (modal.password.length < 8) { modal.error = 'Password must be at least 8 characters'; return; }
+      const res = await this.apiFetch('/api/users/' + modal.user.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: modal.password }),
+      });
+      if (!res) return;
+      if (res.ok) {
+        modal.show = false;
+        await this.loadUsers();
+        this.showToast('Password reset', 'success');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        modal.error = data.error || 'Could not reset password';
+      }
+    },
+
+    async deleteUser(user) {
+      if (!confirm('Delete the account "' + user.username + '"? Their sessions will be signed out.')) return;
+      const res = await this.apiFetch('/api/users/' + user.id, { method: 'DELETE' });
+      if (!res) return;
+      if (res.ok) {
+        await this.loadUsers();
+        this.showToast('User deleted', 'success');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        this.usersModal.error = data.error || 'Could not delete user';
+      }
     },
 
     setupDragDrop() {
@@ -82,7 +219,17 @@ function cloudvault() {
           id: q.id, name: q.file.name, progress: q.progress, status: q.status
         }))];
         this.showToast(e.detail.name + ' uploaded', 'success');
-        await this.fetchBootstrap();
+        // Refresh only what changed: the folder listing, plus a local bump of
+        // the counters. The previous code reloaded every file in the vault
+        // after each single upload.
+        await this.fetchFiles();
+        const size = e.detail.size || 0;
+        this.stats = {
+          ...this.stats,
+          totalFiles: (this.stats.totalFiles || 0) + 1,
+          totalSize: (this.stats.totalSize || 0) + size,
+          recentUploads: this.stats.recentUploads || [],
+        };
       });
       window.addEventListener('upload-error', (e) => {
         this.uploads = [...window.UploadManager.queue.map(q => ({
@@ -135,6 +282,9 @@ function cloudvault() {
     get folderTree() {
       const root = [];
       const map = {};
+      // Index the flat list once: the old version called `this.folders.find`
+      // inside the path loop, which is O(folders x depth) on every render.
+      const byName = new Map(this.folders.map(f => [f.name, f]));
       for (const folder of this.folders) {
         const parts = folder.name.split('/');
         let currentPath = '';
@@ -142,7 +292,7 @@ function cloudvault() {
         for (let i = 0; i < parts.length; i++) {
           currentPath = currentPath ? currentPath + '/' + parts[i] : parts[i];
           if (!map[currentPath]) {
-            const fd = this.folders.find(f => f.name === currentPath);
+            const fd = byName.get(currentPath);
             const node = {
               name: parts[i], path: currentPath,
               shared: fd ? fd.shared : false,
@@ -200,13 +350,23 @@ function cloudvault() {
     _escAttr(s) {
       return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     },
+    _folderLookup() {
+      // `this.folders` is replaced (not mutated) on every refresh, so the cache
+      // can key on identity. Used by the O(n) ancestor checks below.
+      if (this._folderIndex && this._folderIndex.source === this.folders) return this._folderIndex.map;
+      const map = new Map(this.folders.map(f => [f.name, f]));
+      this._folderIndex = { source: this.folders, map };
+      return map;
+    },
+
     _hasSharedAncestor(folderPath, excludeFolder) {
+      const lookup = this._folderLookup();
       const parts = folderPath.split('/');
       let path = '';
       for (let i = 0; i < parts.length - 1; i++) {
         path = path ? path + '/' + parts[i] : parts[i];
         if (path === excludeFolder) continue;
-        const f = this.folders.find(fd => fd.name === path);
+        const f = lookup.get(path);
         if (f && f.directlyShared && !f.excluded) return true;
       }
       return false;
@@ -400,6 +560,7 @@ function cloudvault() {
       this.files = data.files || [];
       this.folders = data.folders || [];
       this.stats = data.stats || this.stats;
+      this.nextCursor = data.cursor || null;
       this._folderShareHash = this.folders.map(f => f.name + (f.shared ? 1 : 0) + (f.directlyShared ? 1 : 0) + (f.excluded ? 1 : 0)).join('|');
     },
 
@@ -433,8 +594,29 @@ function cloudvault() {
       const data = await res.json();
       if (requestId !== this._fileRequestId || folder !== this.currentFolder) return;
       this.files = data.files || [];
+      this.nextCursor = data.cursor || null;
       const visibleIds = new Set(this.files.map(file => file.id));
       this.selectedFiles = new Set([...this.selectedFiles].filter(id => visibleIds.has(id)));
+    },
+
+    async loadMore() {
+      if (!this.nextCursor || this.loadingMore) return;
+      const folder = this.currentFolder;
+      const cursor = this.nextCursor;
+      this.loadingMore = true;
+      try {
+        const params = new URLSearchParams({ folder, cursor });
+        if (this.searchQuery) params.set('search', this.searchQuery);
+        const res = await this.apiFetch('/api/files?' + params);
+        if (!res || !res.ok) return;
+        const data = await res.json();
+        if (folder !== this.currentFolder) return;
+        const known = new Set(this.files.map(f => f.id));
+        this.files = [...this.files, ...(data.files || []).filter(f => !known.has(f.id))];
+        this.nextCursor = data.cursor || null;
+      } finally {
+        this.loadingMore = false;
+      }
     },
 
     async fetchFolders() {
@@ -552,10 +734,15 @@ function cloudvault() {
           body: JSON.stringify({ ids }),
         });
         if (res && res.ok) {
+          const removed = this.files.filter(f => ids.includes(f.id));
           this.files = this.files.filter(f => !ids.includes(f.id));
           this.clearSelection();
           this.showToast(ids.length + ' file(s) deleted', 'success');
-          this.fetchStats();
+          this.stats = {
+            ...this.stats,
+            totalFiles: Math.max(0, (this.stats.totalFiles || 0) - removed.length),
+            totalSize: Math.max(0, (this.stats.totalSize || 0) - removed.reduce((sum, f) => sum + (f.size || 0), 0)),
+          };
         } else {
           this.showToast('Failed to delete files', 'error');
         }
@@ -572,10 +759,10 @@ function cloudvault() {
       if (!newName.trim() || newName === file.name) { this.renameModal.show = false; return; }
       this.renameModal.show = false;
       try {
-        const res = await this.apiFetch('/api/files/' + file.id, {
+        const res = await this.apiFetch('/api/files/rename', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: newName.trim() }),
+          body: JSON.stringify({ key: file.key, name: newName.trim() }),
         });
         if (res && res.ok) {
           const updated = await res.json();
@@ -626,7 +813,7 @@ function cloudvault() {
     async createShare() {
       const { file, password, expiresInDays } = this.shareModal;
       try {
-        const body = { fileId: file.id };
+        const body = { key: file.key };
         if (password) body.password = password;
         if (expiresInDays > 0) body.expiresInDays = expiresInDays;
         const res = await this.apiFetch('/api/share', {
@@ -644,11 +831,11 @@ function cloudvault() {
       } catch { this.showToast('Failed to create share link', 'error'); }
     },
 
-    async revokeShare(fileId) {
+    async revokeShare(key) {
       try {
-        const res = await this.apiFetch('/api/share/' + fileId, { method: 'DELETE' });
+        const res = await this.apiFetch('/api/share/' + encodeURIComponent(key), { method: 'DELETE' });
         if (res && res.ok) {
-          const file = this.files.find(f => f.id === fileId);
+          const file = this.files.find(f => f.key === key);
           if (file) file.shareToken = null;
           this.shareModal.show = false;
           this.showToast('Share link revoked', 'success');
@@ -712,7 +899,7 @@ function cloudvault() {
 
     downloadFile(file) {
       this.ctxMenu.show = false;
-      window.open('/api/files/' + file.id + '/download', '_blank');
+      window.open('/api/files/download?key=' + encodeURIComponent(file.key), '_blank');
     },
 
     async previewFile(file) {
@@ -724,7 +911,7 @@ function cloudvault() {
       this.previewModal = { show: true, file, content: '', loading: true };
       const requestId = (this._previewRequestId || 0) + 1;
       this._previewRequestId = requestId;
-      const previewUrl = '/api/files/' + file.id + '/preview';
+      const previewUrl = '/api/files/preview?key=' + encodeURIComponent(file.key);
 
       try {
         if (file.type.startsWith('video/')) {

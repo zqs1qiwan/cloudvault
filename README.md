@@ -37,7 +37,7 @@ A personal cloud storage platform built on **Cloudflare Workers + R2**. Zero ser
 - **像 [alist](https://github.com/alist-org/alist) 一样使用** — 挂载为网络硬盘，同步系统备份
 - 支持所有主流客户端：rclone、macOS Finder、Windows 资源管理器、Cyberduck
 - 与 KV 元数据完全集成 — WebDAV 上传的文件在管理后台可见，反之亦然
-- HTTP Basic Auth 认证（用户名任意，密码 = 管理员密码）
+- HTTP Basic Auth 认证（使用账号用户名 + 密码，与网页登录同一套凭据）
 - 支持 9 种方法：PROPFIND、GET、HEAD、PUT、DELETE、MKCOL、MOVE、COPY、OPTIONS
 - 浏览器直接访问 `/dav/` 显示带样式的目录列表
 
@@ -103,15 +103,13 @@ cp wrangler.example.jsonc wrangler.jsonc
 - 填入你的 `account_id`（在 Cloudflare 控制台中查找）
 - 将 `kv_namespaces` 中的 `id` 替换为第 2 步创建的 KV 命名空间 ID
 
-#### 4. 设置密钥
+#### 4. 首次初始化（无需配置密钥）
 
-```bash
-# 管理员登录密码
-wrangler secret put ADMIN_PASSWORD
+本项目**不需要** `ADMIN_PASSWORD` 之类的部署密钥。部署完成后直接打开站点，会强制跳转到 `/setup`，在那里创建第一个管理员账号（用户名 + 密码，至少 8 位）；创建成功后该页面立即失效。
 
-# 会话加密密钥（使用随机字符串）
-wrangler secret put SESSION_SECRET
-```
+已有旧版本部署时，如果之前设置过 `ADMIN_PASSWORD`，首次访问会自动把它迁移成名为 `root` 的管理员账号，并标记为“需要修改密码”，不会把任何人锁在门外。
+
+`SESSION_SECRET` 现在是**可选**的：分享链接的签名密钥会在首次使用时自动生成并存进 KV；只有你想自己掌管该密钥时才需要设置。
 
 #### 5. 部署
 
@@ -119,7 +117,7 @@ wrangler secret put SESSION_SECRET
 npm run deploy
 ```
 
-部署完成后访问 `https://cloudvault.<你的子域名>.workers.dev`。
+部署完成后访问 `https://cloudvault.<你的子域名>.workers.dev`，按提示完成首次初始化。
 
 #### 本地开发
 
@@ -127,12 +125,23 @@ npm run deploy
 npm run dev
 ```
 
-创建 `.dev.vars` 文件配置本地密钥：
+本地不需要 `.dev.vars`。若想让本地环境模拟“旧部署自动迁移”，可以临时写入：
 
 ```
 ADMIN_PASSWORD=your-local-password
-SESSION_SECRET=your-local-secret
 ```
+
+否则直接访问 `http://127.0.0.1:8787/setup` 走首次初始化流程。
+
+### 账号与权限
+
+- 登录：`/login`，用户名为账号名，不再固定为 `root`。
+- 首次初始化：`/setup`，仅在没有账号时可访问。
+- 账号管理（管理员）：`GET/POST /api/users`、`PUT/DELETE /api/users/{id}`，可新建、改名、改角色、重置密码、删除。
+- 自助改密：`PUT /api/account/password`（需当前密码，成功后其它设备登出）。
+- 角色：`admin` 可管理账号与站点设置；`user` 可使用文件、分享与 WebDAV。所有账号共用同一个文件库。
+- WebDAV：Basic 认证使用同一套账号密码（例如 `admin` + 你的密码）。
+- 安全约束：最后一个管理员不能被降级或删除；不能删除自己当前登录的账号；被重置密码或被删除的账号，其会话立即失效。
 
 ### 项目结构
 
@@ -227,7 +236,7 @@ cloudvault/
 - **Works like [alist](https://github.com/alist-org/alist)** — mount as network drive, sync system backups
 - All major clients supported: rclone, macOS Finder, Windows Explorer, Cyberduck
 - Fully integrated with KV metadata — files uploaded via WebDAV appear in dashboard and vice versa
-- HTTP Basic Auth (username: anything, password: admin password)
+- HTTP Basic Auth (account username and password, the same credentials as the web login)
 - 9 methods: PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, OPTIONS
 - Browser-friendly styled directory listing at `/dav/`
 
@@ -293,15 +302,13 @@ Edit `wrangler.jsonc`:
 - Set your `account_id` (find it in the Cloudflare dashboard)
 - Set the `id` in `kv_namespaces` to the KV namespace ID from step 2
 
-#### 4. Set secrets
+#### 4. First-run setup (no secrets needed)
 
-```bash
-# Admin login password
-wrangler secret put ADMIN_PASSWORD
+There are no deployment secrets to configure. Open the deployed site: it redirects to `/setup`, where you create the first administrator account (username + password, 8+ characters). That page stops working as soon as the account exists.
 
-# Session encryption secret (use a random string)
-wrangler secret put SESSION_SECRET
-```
+Upgrading from an older version that still has `ADMIN_PASSWORD` set? It is converted into a `root` administrator on first page load and flagged "change this password", so nobody gets locked out.
+
+`SESSION_SECRET` is now optional: the share-link signing key is generated on first use and stored in KV. Set it only if you want to own that key yourself.
 
 #### 5. Deploy
 
@@ -309,7 +316,7 @@ wrangler secret put SESSION_SECRET
 npm run deploy
 ```
 
-Your CloudVault instance is now live at `https://cloudvault.<your-subdomain>.workers.dev`.
+Your CloudVault instance is now live at `https://cloudvault.<your-subdomain>.workers.dev`; finish setup in the browser.
 
 #### Local Development
 
@@ -317,12 +324,17 @@ Your CloudVault instance is now live at `https://cloudvault.<your-subdomain>.wor
 npm run dev
 ```
 
-Create a `.dev.vars` file for local secrets:
+`.dev.vars` is not required. Visit `http://127.0.0.1:8787/setup` to go through first-run setup. To simulate a legacy deployment instead, put `ADMIN_PASSWORD=something` in `.dev.vars`.
 
-```
-ADMIN_PASSWORD=your-local-password
-SESSION_SECRET=your-local-secret
-```
+### Accounts and roles
+
+- Sign in at `/login` with a username and password; the username is no longer hard-coded.
+- `/setup` creates the first administrator and refuses to run once any account exists.
+- Administration API: `GET/POST /api/users`, `PUT/DELETE /api/users/{id}` (create, rename, change role, reset password, delete).
+- Self-service password change: `PUT /api/account/password` (requires the current password; other devices are signed out).
+- Roles: `admin` manages accounts and site settings; `user` gets files, sharing and WebDAV. Every account shares one vault.
+- WebDAV uses the same account credentials over Basic auth.
+- Safeguards: the last administrator cannot be demoted or deleted, you cannot delete the account you are signed in with, and a reset or deleted account loses its sessions immediately.
 
 ### Project Structure
 
@@ -330,23 +342,31 @@ SESSION_SECRET=your-local-secret
 cloudvault/
 ├── src/
 │   ├── index.ts              # Worker entry point & router
-│   ├── auth.ts               # Authentication (password + session)
+│   ├── auth.ts               # Login, first-run setup, sessions
 │   ├── api/
 │   │   ├── files.ts          # File CRUD, upload, download, zip, preview
 │   │   ├── share.ts          # Share links, folder sharing, guest access
-│   │   ├── settings.ts       # Site settings
-│   │   └── stats.ts          # Storage statistics
+│   │   ├── users.ts          # Account management (admin only)
+│   │   └── settings.ts       # Site settings
 │   ├── handlers/
 │   │   ├── download.ts       # Share link page & download handler
-│   │   └── webdav.ts         # WebDAV protocol handler (9 methods)
+│   │   └── webdav.ts         # WebDAV protocol handler (class 1)
+│   ├── lib/
+│   │   ├── accounts.ts       # Account records, bootstrap, DAV credential cache
+│   │   ├── passwords.ts      # PBKDF2 hashing shared by accounts and shares
+│   │   ├── objects.ts        # R2 helpers (list, copy, delete)
+│   │   ├── shares.ts         # Share records and folder flags
+│   │   ├── snapshot.ts       # Folder tree & stats cache
+│   │   ├── zip.ts            # Streaming ZIP writer
+│   │   └── ...               # http, mime, paths, ratelimit, secret
 │   └── utils/
 │       ├── types.ts          # TypeScript types & KV prefixes
-│       ├── response.ts       # JSON/error/redirect helpers
 │       └── webdav-xml.ts     # WebDAV XML response builders
 ├── public/
 │   ├── dashboard.html        # Admin dashboard
 │   ├── guest.html            # Public guest page
 │   ├── login.html            # Login page
+│   ├── setup.html            # First-run setup (only before the first account)
 │   ├── share.html            # Share link page
 │   ├── js/                   # Frontend JavaScript
 │   └── css/                  # Stylesheets

@@ -1,327 +1,207 @@
-import { describe, expect, it } from 'vitest';
-import { handleWebDav } from '../src/handlers/webdav';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { Env } from '../src/utils/types';
+import { handleWebDAV } from '../src/handlers/webdav';
+import { makeEnv } from './helpers/fakes';
 
-interface StoredObject {
-  bytes: Uint8Array;
-  uploaded: Date;
-  httpMetadata: Record<string, string>;
-  customMetadata: Record<string, string>;
-  httpEtag: string;
-}
+const AUTH = 'Basic ' + btoa('root:secret');
+const PASSWORD = 'secret';
 
-function digest(bytes: Uint8Array): string {
-  let hash = 0x811c9dc5;
-  for (const byte of bytes) {
-    hash ^= byte;
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0').repeat(4);
-}
-
-class FakeKV {
-  private store = new Map<string, string>();
-
-  async get(key: string): Promise<string | null> {
-    return this.store.get(key) ?? null;
-  }
-
-  async put(key: string, value: string): Promise<void> {
-    this.store.set(key, value);
-  }
-
-  async delete(key: string): Promise<void> {
-    this.store.delete(key);
-  }
-
-  async list(options: { prefix?: string; limit?: number; cursor?: string } = {}) {
-    const prefix = options.prefix ?? '';
-    const names = [...this.store.keys()].filter((name) => name.startsWith(prefix)).sort();
-    const start = options.cursor ? Number(options.cursor) : 0;
-    const page = names.slice(start, start + (options.limit ?? 1000));
-    const next = start + page.length;
-    return {
-      keys: page.map((name) => ({ name })),
-      list_complete: next >= names.length,
-      cursor: String(next),
-    };
-  }
-
-  /** Every stored file row (not folders/sessions/stats). */
-  fileRows() {
-    return [...this.store.entries()]
-      .filter(([key]) => key.startsWith('file:'))
-      .map(([, value]) => JSON.parse(value) as { id: string; key: string; folder: string; name: string });
-  }
-}
-
-class FakeR2 {
-  readonly objects = new Map<string, StoredObject>();
-  private clock = Date.parse('2026-01-01T00:00:00.000Z');
-
-  private tick(): Date {
-    this.clock += 1000;
-    return new Date(this.clock);
-  }
-
-  private describe(key: string, object: StoredObject) {
-    const writeHttpMetadata = (headers: Headers) => {
-      if (object.httpMetadata.contentType) headers.set('Content-Type', object.httpMetadata.contentType);
-      if (object.httpMetadata.contentDisposition) {
-        headers.set('Content-Disposition', object.httpMetadata.contentDisposition);
-      }
-    };
-    return {
-      key,
-      size: object.bytes.byteLength,
-      etag: object.httpEtag,
-      httpEtag: object.httpEtag,
-      uploaded: object.uploaded,
-      httpMetadata: object.httpMetadata,
-      customMetadata: object.customMetadata,
-      writeHttpMetadata,
-    };
-  }
-
-  async head(key: string) {
-    const object = this.objects.get(key);
-    return object ? this.describe(key, object) : null;
-  }
-
-  async get(key: string, options: { range?: { offset: number; length: number } } = {}) {
-    const object = this.objects.get(key);
-    if (!object) return null;
-    let bytes = object.bytes;
-    if (options.range) {
-      bytes = bytes.slice(options.range.offset, options.range.offset + options.range.length);
-    }
-    return {
-      ...this.describe(key, object),
-      body: new Response(bytes).body,
-    };
-  }
-
-  async put(key: string, body: BodyInit | null, options: { httpMetadata?: Record<string, string>; customMetadata?: Record<string, string> } = {}) {
-    const bytes = new Uint8Array(await new Response(body ?? null).arrayBuffer());
-    const stored: StoredObject = {
-      bytes,
-      uploaded: this.tick(),
-      httpMetadata: options.httpMetadata ?? {},
-      customMetadata: options.customMetadata ?? {},
-      httpEtag: `"${digest(bytes)}"`,
-    };
-    this.objects.set(key, stored);
-    return { ...this.describe(key, stored), httpMetadata: stored.httpMetadata };
-  }
-
-  async delete(key: string): Promise<void> {
-    this.objects.delete(key);
-  }
-
-  async list() {
-    return {
-      objects: [...this.objects.entries()].map(([key, object]) => this.describe(key, object)),
-      truncated: false,
-    };
-  }
-}
-
-function makeEnv() {
-  const kv = new FakeKV();
-  const r2 = new FakeR2();
-  const env = { VAULT_KV: kv, VAULT_BUCKET: r2 } as unknown as Env;
-  return { env, kv, r2 };
-}
+let env: Env;
 
 function dav(path: string, init: RequestInit = {}): Request {
-  return new Request('https://example.com/dav/' + path, init);
+  const headers = new Headers(init.headers);
+  if (!headers.has('Authorization')) headers.set('Authorization', AUTH);
+  return new Request('https://example.com/dav/' + path, { ...init, headers });
 }
 
-function put(env: Env, path: string, body = 'hello', headers: Record<string, string> = {}) {
-  return handleWebDav(dav(path, { method: 'PUT', body, headers }), env);
+function put(path: string, body = 'hello', headers: Record<string, string> = {}) {
+  return handleWebDAV(dav(path, { method: 'PUT', body, headers }), env);
 }
 
-async function getetag(env: Env, path: string): Promise<string> {
-  const response = await handleWebDav(dav(path, { method: 'PROPFIND', headers: { Depth: '0' } }), env);
+function propfind(path: string, depth = '0') {
+  return handleWebDAV(dav(path, { method: 'PROPFIND', headers: { Depth: depth } }), env);
+}
+
+async function etagOf(path: string): Promise<string> {
+  const response = await propfind(path);
   const xml = await response.text();
   const match = /<D:getetag>(.*?)<\/D:getetag>/.exec(xml);
   if (!match) throw new Error('PROPFIND did not publish a getetag');
   return match[1];
 }
 
-describe('WebDAV conditional requests', () => {
-  it('publishes one ETag for PROPFIND, GET and HEAD', async () => {
-    const { env, r2 } = makeEnv();
-    await put(env, 'file-backup/a.txt');
+beforeEach(() => {
+  const made = makeEnv();
+  env = { ...made.env, ADMIN_PASSWORD: PASSWORD } as unknown as Env;
+});
 
-    const propfindTag = await getetag(env, 'file-backup/a.txt');
-    const getResponse = await handleWebDav(dav('file-backup/a.txt'), env);
-    const headResponse = await handleWebDav(dav('file-backup/a.txt', { method: 'HEAD' }), env);
-
-    expect(getResponse.status).toBe(200);
-    expect(getResponse.headers.get('ETag')).toBe(propfindTag);
-    expect(headResponse.headers.get('ETag')).toBe(propfindTag);
-    // The old code answered with R2's content MD5 here, so the two never matched.
-    expect(propfindTag).not.toBe(r2.objects.get('file-backup/a.txt')!.httpEtag);
+describe('WebDAV auth and capabilities', () => {
+  it('refuses requests without credentials', async () => {
+    const response = await handleWebDAV(
+      new Request('https://example.com/dav/', { method: 'PROPFIND' }),
+      env,
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get('WWW-Authenticate')).toContain('Basic');
   });
 
-  it('answers 304 (not 412) when If-None-Match matches on GET and HEAD', async () => {
-    const { env } = makeEnv();
-    await put(env, 'file-backup/a.txt');
-    const tag = await getetag(env, 'file-backup/a.txt');
-
-    const getResponse = await handleWebDav(dav('file-backup/a.txt', { headers: { 'If-None-Match': tag } }), env);
-    expect(getResponse.status).toBe(304);
-    expect(getResponse.headers.get('ETag')).toBe(tag);
-    expect(await getResponse.text()).toBe('');
-
-    const headResponse = await handleWebDav(dav('file-backup/a.txt', { method: 'HEAD', headers: { 'If-None-Match': tag } }), env);
-    expect(headResponse.status).toBe(304);
-  });
-
-  it('serves the body when If-None-Match does not match', async () => {
-    const { env } = makeEnv();
-    await put(env, 'file-backup/a.txt');
-
-    const response = await handleWebDav(dav('file-backup/a.txt', { headers: { 'If-None-Match': '"stale"' } }), env);
+  it('advertises class 1 and no LOCK', async () => {
+    const response = await handleWebDAV(dav('', { method: 'OPTIONS' }), env);
     expect(response.status).toBe(200);
-    expect(await response.text()).toBe('hello');
-  });
-
-  it('accepts If-Match with the published ETag as plain and weak tags', async () => {
-    const { env } = makeEnv();
-    await put(env, 'file-backup/a.txt');
-    const tag = await getetag(env, 'file-backup/a.txt');
-
-    const strong = await handleWebDav(dav('file-backup/a.txt', { headers: { 'If-Match': tag } }), env);
-    expect(strong.status).toBe(200);
-
-    const weak = await handleWebDav(dav('file-backup/a.txt', { headers: { 'If-Match': `W/${tag}` } }), env);
-    expect(weak.status).toBe(200);
-  });
-
-  it('rejects a stale If-Match with 412', async () => {
-    const { env } = makeEnv();
-    await put(env, 'file-backup/a.txt');
-
-    const response = await handleWebDav(dav('file-backup/a.txt', { headers: { 'If-Match': '"outdated-etag"' } }), env);
-    expect(response.status).toBe(412);
-  });
-
-  it('changes the ETag after an overwrite and answers 204', async () => {
-    const { env } = makeEnv();
-    await put(env, 'file-backup/a.txt', 'first');
-    const before = await getetag(env, 'file-backup/a.txt');
-
-    const overwrite = await put(env, 'file-backup/a.txt', 'second');
-    expect(overwrite.status).toBe(204);
-
-    const after = await getetag(env, 'file-backup/a.txt');
-    expect(after).not.toBe(before);
-
-    const stale = await handleWebDav(dav('file-backup/a.txt', { headers: { 'If-Match': before } }), env);
-    expect(stale.status).toBe(412);
+    expect(response.headers.get('DAV')).toBe('1');
+    expect(response.headers.get('Allow')).not.toContain('LOCK');
+    expect((await handleWebDAV(dav('x', { method: 'LOCK' }), env)).status).toBe(501);
   });
 });
 
-describe('WebDAV uploads keep one row per path', () => {
+describe('WebDAV reads and conditionals', () => {
+  it('publishes the same ETag through PROPFIND, GET and HEAD', async () => {
+    const created = await put('file-backup/a.txt');
+    expect(created.status).toBe(201);
+    const tag = created.headers.get('ETag');
+
+    expect(await etagOf('file-backup/a.txt')).toBe(tag);
+
+    const get = await handleWebDAV(dav('file-backup/a.txt'), env);
+    expect(get.status).toBe(200);
+    expect(get.headers.get('ETag')).toBe(tag);
+    expect(await get.text()).toBe('hello');
+
+    const head = await handleWebDAV(dav('file-backup/a.txt', { method: 'HEAD' }), env);
+    expect(head.headers.get('ETag')).toBe(tag);
+    expect(await head.text()).toBe('');
+  });
+
+  it('answers 304 when If-None-Match matches, 200 when it does not', async () => {
+    await put('file-backup/a.txt');
+    const tag = await etagOf('file-backup/a.txt');
+
+    const cached = await handleWebDAV(dav('file-backup/a.txt', { headers: { 'If-None-Match': tag } }), env);
+    expect(cached.status).toBe(304);
+    expect(await cached.text()).toBe('');
+
+    const changed = await handleWebDAV(dav('file-backup/a.txt', { headers: { 'If-None-Match': '"stale"' } }), env);
+    expect(changed.status).toBe(200);
+  });
+
+  it('honours If-Match and rejects a stale tag with 412', async () => {
+    await put('file-backup/a.txt');
+    const tag = await etagOf('file-backup/a.txt');
+
+    expect((await handleWebDAV(dav('file-backup/a.txt', { headers: { 'If-Match': tag } }), env)).status).toBe(200);
+    expect((await handleWebDAV(dav('file-backup/a.txt', { headers: { 'If-Match': `W/${tag}` } }), env)).status).toBe(200);
+    expect((await handleWebDAV(dav('file-backup/a.txt', { headers: { 'If-Match': '"outdated"' } }), env)).status).toBe(412);
+  });
+
+  it('serves a byte range with 206 and rejects an impossible one with 416', async () => {
+    await put('file-backup/a.txt', '0123456789');
+
+    const ranged = await handleWebDAV(dav('file-backup/a.txt', { headers: { Range: 'bytes=2-5' } }), env);
+    expect(ranged.status).toBe(206);
+    expect(ranged.headers.get('Content-Range')).toBe('bytes 2-5/10');
+    expect(await ranged.text()).toBe('2345');
+
+    const suffix = await handleWebDAV(dav('file-backup/a.txt', { headers: { Range: 'bytes=-3' } }), env);
+    expect(await suffix.text()).toBe('789');
+
+    expect((await handleWebDAV(dav('file-backup/a.txt', { headers: { Range: 'bytes=10-' } }), env)).status).toBe(416);
+  });
+
+  it('sandboxes inline responses so an uploaded HTML file cannot run', async () => {
+    await put('file-backup/evil.html', '<script>alert(1)</script>', { 'Content-Type': 'text/html' });
+    const response = await handleWebDAV(dav('file-backup/evil.html'), env);
+    expect(response.headers.get('Content-Security-Policy')).toContain('sandbox');
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  });
+});
+
+describe('WebDAV writes', () => {
   it('does not duplicate the listing when the same path is PUT repeatedly', async () => {
-    const { env, kv } = makeEnv();
-    await put(env, 'file-backup/a.txt', 'v1');
-    await put(env, 'file-backup/a.txt', 'v2');
-    await put(env, 'file-backup/a.txt', 'v3');
+    await put('file-backup/a.txt', 'v1');
+    await put('file-backup/a.txt', 'v2');
+    const overwrite = await put('file-backup/a.txt', 'v3');
+    expect(overwrite.status).toBe(204);
 
-    expect(kv.fileRows().filter((row) => row.key === 'file-backup/a.txt')).toHaveLength(1);
-
-    const response = await handleWebDav(dav('file-backup', { method: 'PROPFIND', headers: { Depth: '1' } }), env);
-    const xml = await response.text();
+    const xml = await (await propfind('file-backup', '1')).text();
     expect(xml.match(/<D:href>\/dav\/file-backup\/a\.txt<\/D:href>/g)).toHaveLength(1);
   });
 
-  it('moves a file that was just uploaded', async () => {
-    const { env } = makeEnv();
-    await put(env, 'file-backup/a.txt', 'payload');
+  it('refuses a conditional write when the precondition fails', async () => {
+    expect((await put('cond/a.txt', 'one', { 'If-None-Match': '*' })).status).toBe(201);
+    expect((await put('cond/a.txt', 'two', { 'If-None-Match': '*' })).status).toBe(412);
+    expect((await put('cond/a.txt', 'three', { 'If-Match': '"nope"' })).status).toBe(412);
+  });
 
-    const moved = await handleWebDav(
-      dav('file-backup/a.txt', {
-        method: 'MOVE',
-        headers: { Destination: 'https://example.com/dav/file-backup/b.txt' },
-      }),
+  it('creates an empty collection that shows up in the parent listing', async () => {
+    expect((await handleWebDAV(dav('empty/', { method: 'MKCOL' }), env)).status).toBe(201);
+    expect((await handleWebDAV(dav('empty/', { method: 'MKCOL' }), env)).status).toBe(405);
+
+    const xml = await (await propfind('', '1')).text();
+    expect(xml).toContain('/dav/empty/');
+  });
+
+  it('creates parent folders implicitly when a file is PUT', async () => {
+    expect((await put('missing/a.txt')).status).toBe(201);
+    expect((await propfind('missing')).status).toBe(207);
+  });
+
+  it('requires the parent collection to exist for MKCOL', async () => {
+    expect((await handleWebDAV(dav('missing/sub/', { method: 'MKCOL' }), env)).status).toBe(409);
+  });
+
+  it('refuses to write the internal folder marker', async () => {
+    await handleWebDAV(dav('folder/', { method: 'MKCOL' }), env);
+    expect((await put('folder/.cv-folder')).status).toBe(403);
+  });
+});
+
+describe('WebDAV move and copy', () => {
+  it('moves a file and keeps its content', async () => {
+    await put('file-backup/a.txt', 'payload');
+    const moved = await handleWebDAV(
+      dav('file-backup/a.txt', { method: 'MOVE', headers: { Destination: 'https://example.com/dav/file-backup/b.txt' } }),
       env,
     );
     expect(moved.status).toBe(201);
+    expect((await handleWebDAV(dav('file-backup/a.txt'), env)).status).toBe(404);
 
-    const source = await handleWebDav(dav('file-backup/a.txt'), env);
-    expect(source.status).toBe(404);
-
-    const destination = await handleWebDav(dav('file-backup/b.txt'), env);
+    const destination = await handleWebDAV(dav('file-backup/b.txt'), env);
     expect(destination.status).toBe(200);
     expect(await destination.text()).toBe('payload');
   });
 
-  it('copies a file into a second path with its own ETag', async () => {
-    const { env } = makeEnv();
-    await put(env, 'file-backup/a.txt', 'payload');
-    const original = await getetag(env, 'file-backup/a.txt');
+  it('moves a whole folder, markers included', async () => {
+    await put('old/a.txt', 'one');
+    await put('old/deep/b.txt', 'two');
+    await handleWebDAV(dav('old/empty/', { method: 'MKCOL' }), env);
 
-    const copied = await handleWebDav(
-      dav('file-backup/a.txt', {
-        method: 'COPY',
-        headers: { Destination: 'https://example.com/dav/file-backup/b.txt' },
-      }),
+    const moved = await handleWebDAV(
+      dav('old/', { method: 'MOVE', headers: { Destination: 'https://example.com/dav/new/' } }),
+      env,
+    );
+    expect(moved.status).toBe(201);
+
+    expect((await propfind('old')).status).toBe(404);
+    expect(await (await handleWebDAV(dav('new/deep/b.txt'), env)).text()).toBe('two');
+    const tree = await (await propfind('new', 'infinity')).text();
+    expect(tree).toContain('/dav/new/empty/');
+  });
+
+  it('copies a file without touching the source', async () => {
+    await put('file-backup/a.txt', 'payload');
+    const copied = await handleWebDAV(
+      dav('file-backup/a.txt', { method: 'COPY', headers: { Destination: 'https://example.com/dav/file-backup/b.txt' } }),
       env,
     );
     expect(copied.status).toBe(201);
-
-    const copyTag = await getetag(env, 'file-backup/b.txt');
-    expect(copyTag).not.toBe(original);
-
-    const copy = await handleWebDav(dav('file-backup/b.txt'), env);
-    expect(await copy.text()).toBe('payload');
+    expect(await (await handleWebDAV(dav('file-backup/a.txt'), env)).text()).toBe('payload');
+    expect(await (await handleWebDAV(dav('file-backup/b.txt'), env)).text()).toBe('payload');
   });
 
-  it('agrees on the ETag when only the R2 object exists (index still lagging)', async () => {
-    const { env, r2 } = makeEnv();
-    await r2.put('file-backup/late.txt', 'payload', { customMetadata: { fileId: 'row-late' } });
-
-    const propfindTag = await getetag(env, 'file-backup/late.txt');
-    const getResponse = await handleWebDav(dav('file-backup/late.txt'), env);
-
-    expect(getResponse.status).toBe(200);
-    expect(getResponse.headers.get('ETag')).toBe(propfindTag);
-
-    const notModified = await handleWebDav(
-      dav('file-backup/late.txt', { headers: { 'If-None-Match': propfindTag } }),
-      env,
-    );
-    expect(notModified.status).toBe(304);
-  });
-
-  it('moves a file whose metadata row has not reached KV yet', async () => {
-    const { env, r2 } = makeEnv();
-    // Simulate a colo that cannot see the row another colo just wrote.
-    await r2.put('file-backup/late.txt', 'payload', { customMetadata: { fileId: 'row-late' } });
-
-    const moved = await handleWebDav(
-      dav('file-backup/late.txt', {
-        method: 'MOVE',
-        headers: { Destination: 'https://example.com/dav/file-backup/late2.txt' },
-      }),
-      env,
-    );
-    expect(moved.status).toBe(201);
-
-    const destination = await handleWebDav(dav('file-backup/late2.txt'), env);
-    expect(destination.status).toBe(200);
-    expect(await destination.text()).toBe('payload');
-  });
-
-  it('reports 412 for Overwrite: F when the destination exists', async () => {
-    const { env } = makeEnv();
-    await put(env, 'file-backup/a.txt');
-    await put(env, 'file-backup/b.txt', 'existing');
-
-    const response = await handleWebDav(
+  it('reports 412 when Overwrite: F finds an existing destination', async () => {
+    await put('file-backup/a.txt');
+    await put('file-backup/b.txt', 'existing');
+    const response = await handleWebDAV(
       dav('file-backup/a.txt', {
         method: 'MOVE',
         headers: { Destination: 'https://example.com/dav/file-backup/b.txt', Overwrite: 'F' },
@@ -329,5 +209,45 @@ describe('WebDAV uploads keep one row per path', () => {
       env,
     );
     expect(response.status).toBe(412);
+  });
+
+  it('refuses to move a folder into itself', async () => {
+    await put('loop/a.txt');
+    const response = await handleWebDAV(
+      dav('loop/', { method: 'MOVE', headers: { Destination: 'https://example.com/dav/loop/inner/' } }),
+      env,
+    );
+    expect(response.status).toBe(409);
+  });
+});
+
+describe('WebDAV delete and depth', () => {
+  it('deletes a folder with everything under it and drops its share links', async () => {
+    await put('doomed/a.txt', 'one');
+    await put('doomed/deep/b.txt', 'two');
+
+    const response = await handleWebDAV(dav('doomed/', { method: 'DELETE' }), env);
+    expect(response.status).toBe(204);
+    expect((await handleWebDAV(dav('doomed/deep/b.txt'), env)).status).toBe(404);
+    expect((await handleWebDAV(dav('doomed/', { method: 'DELETE' }), env)).status).toBe(404);
+  });
+
+  it('answers Depth: 1 with the folder and its direct children only', async () => {
+    await put('tree/a.txt');
+    await put('tree/sub/b.txt');
+
+    const xml = await (await propfind('tree', '1')).text();
+    expect(xml).toContain('/dav/tree/a.txt');
+    expect(xml).toContain('/dav/tree/sub/');
+    expect(xml).not.toContain('/dav/tree/sub/b.txt');
+  });
+
+  it('answers Depth: infinity recursively', async () => {
+    await put('tree/a.txt');
+    await put('tree/sub/b.txt');
+    await put('tree/sub/deeper/c.txt');
+
+    const xml = await (await propfind('tree', 'infinity')).text();
+    expect(xml).toContain('/dav/tree/sub/deeper/c.txt');
   });
 });

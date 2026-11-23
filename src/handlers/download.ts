@@ -1,375 +1,355 @@
-import { Env, FileMeta, KV_PREFIX } from '../utils/types';
-import { error, getPreviewType, fetchAssetHtml, injectBranding } from '../utils/response';
-import { verifySharePassword, resolveFolderShareToken, browseFolderShareLink, getSharedFolders, getExcludedFolders, isFolderShared } from '../api/share';
+// ─── Public downloads and share pages ─────────────────────────────────
+//
+// Everything a guest can reach: the share page, its download and preview
+// endpoints, folder links, and the "clean" URLs (`/<folder>/<file>`).
+//
+// Two rules apply to all of them, in one place:
+//   1. the token must be alive and, if it has a password, the cookie must match;
+//   2. the requested key must live inside the folder the link grants, and must
+//      not be excluded from sharing.
+
+import type { Env, FileMeta } from '../utils/types';
+import { KV_PREFIX } from '../utils/types';
+import { ROOT, folderOf, isUnder, nameOf, normalizeFolder } from '../lib/paths';
+import { headObject, metaFromObject } from '../lib/objects';
+import { error, fetchAssetHtml, html, json, jsonIsland, serveObject, injectBranding } from '../lib/http';
 import { getSettings } from '../api/settings';
-import { getMimeType } from '../utils/response';
-import { contentDisposition, parseSingleRange, serveR2File } from '../utils/files';
+import { folderLinkScope, guestFolderView, shareIsUsable } from '../api/share';
+import { countShareDownload, getExcludedFolders, getShare, getSharedFolders, isExcluded, isFolderShared, verifySharePassword } from '../lib/shares';
+import { checkLimit, clientId, recordFailure, clearFailures } from '../lib/ratelimit';
+import { constantTimeEqual } from '../lib/passwords';
+import { getInstanceSecret } from '../lib/secret';
 
-function extractToken(url: URL): string | null {
-  const parts = url.pathname.split('/');
-  const sIdx = parts.indexOf('s');
-  return sIdx >= 0 && parts[sIdx + 1] ? parts[sIdx + 1] : null;
+const COOKIE_MAX_AGE = 3600;
+
+// ─── Password gate ────────────────────────────────────────────────────
+
+async function cookieName(token: string): Promise<string> {
+  return `share_auth_${token}`;
 }
 
-async function resolveShare(token: string, env: Env): Promise<{ meta: FileMeta; expired: boolean } | null> {
-  const fileId = await env.VAULT_KV.get(KV_PREFIX.SHARE + token);
-  if (!fileId) return null;
-
-  const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + fileId);
-  if (!raw) return null;
-
-  const meta: FileMeta = JSON.parse(raw);
-  const expired = !!meta.shareExpiresAt && new Date(meta.shareExpiresAt) < new Date();
-  return { meta, expired };
-}
-
-function getCookie(request: Request, name: string): string | null {
-  const cookies = request.headers.get('Cookie') || '';
-  for (const part of cookies.split(';')) {
-    const separator = part.indexOf('=');
-    if (separator >= 0 && part.slice(0, separator).trim() === name) {
-      return part.slice(separator + 1).trim();
-    }
-  }
-  return null;
-}
-
-async function signShareCookie(token: string, expires: number, secret: string): Promise<string> {
+async function signature(env: Env, token: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     'raw',
-    new TextEncoder().encode(secret),
+    new TextEncoder().encode(await getInstanceSecret(env)),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign'],
   );
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${token}.${expires}`));
-  const hex = Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, '0')).join('');
-  return `${expires}.${hex}`;
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`share:${token}`));
+  return Array.from(new Uint8Array(mac), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function hasValidShareCookie(request: Request, token: string, env: Env): Promise<boolean> {
-  const value = getCookie(request, `share_${token}`);
-  if (!value) return false;
-  const separator = value.indexOf('.');
-  const expires = Number(value.slice(0, separator));
-  if (separator < 1 || !Number.isSafeInteger(expires) || expires <= Math.floor(Date.now() / 1000)) return false;
-  const expected = await signShareCookie(token, expires, env.SESSION_SECRET);
-  const encoder = new TextEncoder();
-  const actualBytes = encoder.encode(value);
-  const expectedBytes = encoder.encode(expected);
-  return actualBytes.byteLength === expectedBytes.byteLength
-    && crypto.subtle.timingSafeEqual(actualBytes, expectedBytes);
+async function hasAccessCookie(request: Request, env: Env, token: string): Promise<boolean> {
+  const name = await cookieName(token);
+  const cookie = request.headers.get('Cookie') ?? '';
+  for (const part of cookie.split(';')) {
+    const [rawName, ...rest] = part.trim().split('=');
+    if (rawName === name) return constantTimeEqual(rest.join('='), await signature(env, token));
+  }
+  return false;
 }
 
-export async function handleSharePage(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const token = extractToken(url);
-  if (!token) return error('Invalid share link', 400);
-
-  const result = await resolveShare(token, env);
-  if (result) {
-    if (result.expired) {
-      return serveShareHtml(env, request, { error: 'This share link has expired.' });
-    }
-    if (result.meta.sharePassword && !await hasValidShareCookie(request, token, env)) {
-      return serveShareHtml(env, request, { needsPassword: true });
-    }
-    return serveShareHtml(env, request, {
-      name: result.meta.name,
-      size: result.meta.size,
-      type: result.meta.type,
-      uploadedAt: result.meta.uploadedAt,
-      downloads: result.meta.downloads,
-      previewType: getPreviewType(result.meta.name, result.meta.type),
-    });
-  }
-
-  const folderLink = await resolveFolderShareToken(token, env);
-  if (!folderLink) {
-    return serveShareHtml(env, request, { error: 'This share link is invalid or has been revoked.' });
-  }
-
-  if (folderLink.expiresAt && new Date(folderLink.expiresAt) < new Date()) {
-    return serveShareHtml(env, request, { error: 'This share link has expired.' });
-  }
-
-  if (folderLink.passwordHash && !await hasValidShareCookie(request, token, env)) {
-    return serveShareHtml(env, request, { needsPassword: true, isFolder: true });
-  }
-
-  const subpath = url.searchParams.get('path') || '';
-  const browseResult = await browseFolderShareLink(folderLink.folder, subpath, env);
-  const folderName = folderLink.folder.split('/').pop() || folderLink.folder;
-
-  return serveShareHtml(env, request, {
-    isFolder: true,
-    folderName,
-    folder: folderLink.folder,
-    subpath,
-    files: browseResult.files,
-    subfolders: browseResult.subfolders,
-  });
+async function grantAccess(env: Env, token: string): Promise<string> {
+  const name = await cookieName(token);
+  return `${name}=${await signature(env, token)}; Path=/s/${token}; HttpOnly; Secure; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE}`;
 }
 
-export async function handleFolderShareDownload(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const token = extractToken(url);
-  if (!token) return error('Invalid share link', 400);
+export async function handleShareVerify(token: string, request: Request, env: Env): Promise<Response> {
+  const form = await request.formData().catch(() => null);
+  const password = String(form?.get('password') ?? '');
 
-  const folderLink = await resolveFolderShareToken(token, env);
-  if (!folderLink) return error('Share link invalid', 404);
-  if (folderLink.expiresAt && new Date(folderLink.expiresAt) < new Date()) return error('Share link expired', 404);
-  if (folderLink.passwordHash && !await hasValidShareCookie(request, token, env)) return error('Password required', 403);
-
-  const fileId = url.searchParams.get('fileId');
-  if (!fileId) return error('fileId required', 400);
-
-  const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + fileId);
-  if (!raw) return error('File not found', 404);
-
-  const meta: FileMeta = JSON.parse(raw);
-  if (meta.folder !== folderLink.folder && !meta.folder.startsWith(folderLink.folder + '/')) {
-    return error('File not in shared folder', 403);
+  const guard = await checkLimit(env, 'sharePassword', `${token}:${clientId(request)}`);
+  if (guard.blocked) {
+    return json({ error: 'Too many attempts', retryAfter: guard.retryAfter }, 429, 'no-store');
   }
 
-  meta.downloads++;
-  await env.VAULT_KV.put(KV_PREFIX.FILE + meta.id, JSON.stringify(meta));
-  const cacheControl = folderLink.passwordHash ? 'private, no-store' : 'public, max-age=14400';
-  return await serveR2File(request, env.VAULT_BUCKET, meta.key, meta.name, 'attachment', cacheControl, meta.type)
-    ?? error('File not found in storage', 404);
-}
+  const record = await getShare(env, token);
+  const link = record ? null : await folderLinkScope(env, token);
+  const hash = record?.passwordHash ?? link?.passwordHash ?? null;
 
-export async function handleFolderSharePreview(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const token = extractToken(url);
-  if (!token) return error('Invalid share link', 400);
+  if (!hash) return error('This link is not password protected', 400);
+  if (!password) return error('Password required', 400);
 
-  const folderLink = await resolveFolderShareToken(token, env);
-  if (!folderLink) return error('Share link invalid', 404);
-  if (folderLink.expiresAt && new Date(folderLink.expiresAt) < new Date()) return error('Share link expired', 404);
-  if (folderLink.passwordHash && !await hasValidShareCookie(request, token, env)) return error('Password required', 403);
-
-  const fileId = url.searchParams.get('fileId');
-  if (!fileId) return error('fileId required', 400);
-
-  const raw = await env.VAULT_KV.get(KV_PREFIX.FILE + fileId);
-  if (!raw) return error('File not found', 404);
-
-  const meta: FileMeta = JSON.parse(raw);
-  if (meta.folder !== folderLink.folder && !meta.folder.startsWith(folderLink.folder + '/')) {
-    return error('File not in shared folder', 403);
+  const result = await verifySharePassword(password, hash);
+  if (!result.valid) {
+    await recordFailure(env, 'sharePassword', `${token}:${clientId(request)}`);
+    return error('Incorrect password', 401);
   }
+  await clearFailures(env, 'sharePassword', `${token}:${clientId(request)}`);
 
-  const cacheControl = folderLink.passwordHash ? 'private, no-store' : 'public, max-age=14400';
-  return await serveR2File(request, env.VAULT_BUCKET, meta.key, meta.name, 'inline', cacheControl, meta.type)
-    ?? error('File not found in storage', 404);
+  const headers = { Location: `/s/${token}`, 'Set-Cookie': await grantAccess(env, token) };
+  return new Response(null, { status: 303, headers });
 }
 
-async function serveShareHtml(env: Env, request: Request, fileData: Record<string, unknown>): Promise<Response> {
+// ─── Share page ───────────────────────────────────────────────────────
+
+export async function handleSharePage(request: Request, env: Env, token: string, url: URL): Promise<Response> {
+  const body = await fetchAssetHtml(env.ASSETS, request.url, '/share.html');
   const settings = await getSettings(env);
-  let html = await fetchAssetHtml(env.ASSETS, request.url, '/share.html');
 
-  html = injectBranding(html, { siteName: settings.siteName, siteIconUrl: settings.siteIconUrl });
-  html = html.replace(
-    '<script id="file-data" type="application/json">{}</script>',
-    '<script id="file-data" type="application/json">' + JSON.stringify(fileData).replace(/[<>&]/g, (char) => ({ '<': '\\u003c', '>': '\\u003e', '&': '\\u0026' })[char]!) + '</script>'
+  const record = await getShare(env, token);
+  let data: Record<string, unknown>;
+
+  if (record) {
+    if (!shareIsUsable(record)) {
+      data = { error: 'This share link has expired.' };
+    } else if (record.passwordHash && !(await hasAccessCookie(request, env, token))) {
+      data = { needsPassword: true };
+    } else {
+      const head = await headObject(env, record.key);
+      if (!head) {
+        data = { error: 'This file no longer exists.' };
+      } else {
+        const meta: FileMeta = { ...metaFromObject(head), shareToken: token, downloads: record.downloads ?? 0 };
+        data = {
+          id: meta.id,
+          key: meta.key,
+          name: meta.name,
+          size: meta.size,
+          type: meta.type,
+          uploadedAt: meta.uploadedAt,
+          downloads: meta.downloads,
+        };
+      }
+    }
+  } else {
+    const link = await folderLinkScope(env, token);
+    if (!link) {
+      data = { error: 'This share link may have expired or been revoked.' };
+    } else if (link.passwordHash && !(await hasAccessCookie(request, env, token))) {
+      data = { needsPassword: true };
+    } else {
+      const requested = url.searchParams.get('path') || link.folder;
+      const view = await guestFolderView(env, requested, { root: link.folder, publicRoot: false });
+      if (!view) {
+        data = { error: 'This folder is no longer available.' };
+      } else {
+        const relative = normalizeFolder(requested) === link.folder
+          ? ''
+          : normalizeFolder(requested).slice(link.folder.length + 1);
+        data = {
+          isFolder: true,
+          folderName: link.folder,
+          folder: link.folder,
+          subpath: relative,
+          subfolders: view.subfolders,
+          files: view.files.map((file) => ({
+            id: file.id,
+            key: file.key,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            uploadedAt: file.uploadedAt,
+          })),
+        };
+      }
+    }
+  }
+
+  const page = injectBranding(body, settings).replace(
+    /<script id="file-data"[^>]*>[\s\S]*?<\/script>/,
+    jsonIsland('file-data', data),
   );
-
-  return new Response(html, {
-    status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
-  });
+  return html(page, 200, { 'Cache-Control': 'no-store' });
 }
 
-export async function handleShareDownload(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const token = extractToken(url);
-  if (!token) return error('Invalid share link', 400);
+// ─── Resolving a public request to an object key ──────────────────────
 
-  const result = await resolveShare(token, env);
-  if (!result || result.expired) return error('Share link invalid or expired', 404);
-
-  if (result.meta.sharePassword && !await hasValidShareCookie(request, token, env)) {
-    return error('Password required', 403);
-  }
-
-  const object = await env.VAULT_BUCKET.get(result.meta.key);
-  if (!object) return error('File not found in storage', 404);
-
-  result.meta.downloads++;
-  await env.VAULT_KV.put(KV_PREFIX.FILE + result.meta.id, JSON.stringify(result.meta));
-
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set('etag', object.httpEtag);
-  headers.set('Cache-Control', result.meta.sharePassword ? 'private, no-store' : 'public, max-age=14400');
-  headers.set('Content-Disposition', contentDisposition('attachment', result.meta.name));
-  headers.set('Content-Length', String(object.size));
-
-  const rangeHeader = request.headers.get('Range');
-  if (rangeHeader) {
-    return handleRangeRequest(request, env, result.meta, object, headers);
-  }
-
-  return new Response(object.body, { headers });
+interface ResolvedShare {
+  key: string;
+  downloadsToken: string | null;
 }
 
-export async function handlePreview(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const token = extractToken(url);
-  if (!token) return error('Invalid share link', 400);
-
-  const result = await resolveShare(token, env);
-  if (!result || result.expired) return error('Share link invalid or expired', 404);
-
-  if (result.meta.sharePassword && !await hasValidShareCookie(request, token, env)) {
-    return error('Password required', 403);
-  }
-
-  const rangeHeader = request.headers.get('Range');
-
-  if (rangeHeader) {
-    const object = await env.VAULT_BUCKET.get(result.meta.key);
-    if (!object) return error('File not found', 404);
-
-    const headers = new Headers();
-    object.writeHttpMetadata(headers);
-    headers.set('etag', object.httpEtag);
-    headers.set('Content-Type', result.meta.type || 'application/octet-stream');
-    headers.set('Accept-Ranges', 'bytes');
-
-    return handleRangeRequest(request, env, result.meta, object, headers);
-  }
-
-  const object = await env.VAULT_BUCKET.get(result.meta.key);
-  if (!object) return error('File not found', 404);
-
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set('etag', object.httpEtag);
-  headers.set('Content-Type', result.meta.type || 'application/octet-stream');
-  headers.set('Content-Disposition', 'inline');
-  headers.set('Cache-Control', result.meta.sharePassword ? 'private, no-store' : 'public, max-age=14400');
-  headers.set('Accept-Ranges', 'bytes');
-
-  return new Response(object.body, { headers });
+/**
+ * Gate for the file endpoints: token → live record → password cookie → key.
+ * Returns null when the caller must get a 404.
+ */
+async function resolveFileShare(env: Env, request: Request, token: string): Promise<ResolvedShare | null> {
+  const record = await getShare(env, token);
+  if (!record || !shareIsUsable(record)) return null;
+  if (record.passwordHash && !(await hasAccessCookie(request, env, token))) return null;
+  if (!(await headObject(env, record.key))) return null;
+  return { key: record.key, downloadsToken: token };
 }
 
-async function handleRangeRequest(
+export async function handleShareDownload(
   request: Request,
   env: Env,
-  meta: FileMeta,
-  object: R2ObjectBody,
-  headers: Headers,
+  token: string,
+  ctx: ExecutionContext,
 ): Promise<Response> {
-  const rangeHeader = request.headers.get('Range') || '';
-  const range = parseSingleRange(rangeHeader, object.size);
-  if (!range) {
-    return new Response('Range Not Satisfiable', {
-      status: 416,
-      headers: { 'Content-Range': 'bytes */' + object.size },
-    });
-  }
-  const rangedObject = await env.VAULT_BUCKET.get(meta.key, { range });
-  if (!rangedObject) return error('File not found', 404);
-  headers.set('Content-Range', `bytes ${range.offset}-${range.offset + range.length - 1}/${object.size}`);
-  headers.set('Content-Length', String(range.length));
-  headers.set('Accept-Ranges', 'bytes');
-  return new Response(rangedObject.body, { status: 206, headers });
-}
+  const resolved = await resolveFileShare(env, request, token);
+  if (!resolved) return error('Link not available', 404);
 
-export async function handleSharePassword(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const token = extractToken(url);
-  if (!token) return error('Invalid share link', 400);
-
-  let storedPassword: string | null = null;
-
-  const result = await resolveShare(token, env);
-  if (result) {
-    storedPassword = result.meta.sharePassword;
-  } else {
-    const folderLink = await resolveFolderShareToken(token, env);
-    if (folderLink) {
-      storedPassword = folderLink.passwordHash;
-    }
-  }
-
-  if (!storedPassword) {
-    return new Response(null, {
-      status: 302,
-      headers: { Location: '/s/' + token },
-    });
-  }
-
-  const contentType = request.headers.get('Content-Type') || '';
-  let password: string;
-
-  if (contentType.includes('application/x-www-form-urlencoded')) {
-    const formData = await request.formData();
-    password = formData.get('password') as string || '';
-  } else if (contentType.includes('application/json')) {
-    const body = await request.json<{ password: string }>();
-    password = body.password || '';
-  } else {
-    return error('Unsupported content type', 415);
-  }
-
-  const valid = await verifySharePassword(password, storedPassword);
-  if (!valid) return error('Invalid password', 401);
-
-  const cookieMaxAge = 24 * 60 * 60;
-  const expires = Math.floor(Date.now() / 1000) + cookieMaxAge;
-  const cookieValue = await signShareCookie(token, expires, env.SESSION_SECRET);
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: '/s/' + token,
-      'Set-Cookie': 'share_' + token + '=' + cookieValue + '; Path=/s/' + token + '; HttpOnly; Secure; SameSite=Lax; Max-Age=' + cookieMaxAge,
-    },
+  const response = await serveObject(request, env.VAULT_BUCKET, resolved.key, {
+    name: nameOf(resolved.key),
+    disposition: 'attachment',
+    cacheControl: 'private, max-age=0',
   });
+  if (!response) return error('File not found', 404);
+
+  if (response.status === 200 && resolved.downloadsToken) {
+    await countShareDownload(env, resolved.downloadsToken, ctx);
+  }
+  return response;
 }
 
-export async function handleCleanDownload(request: Request, env: Env): Promise<Response | null> {
-  const url = new URL(request.url);
-  let decodedPath: string;
+export async function handleSharePreview(request: Request, env: Env, token: string): Promise<Response> {
+  const resolved = await resolveFileShare(env, request, token);
+  if (!resolved) return error('Link not available', 404);
+
+  const response = await serveObject(request, env.VAULT_BUCKET, resolved.key, {
+    name: nameOf(resolved.key),
+    disposition: 'inline',
+    cacheControl: 'private, max-age=3600',
+  });
+  return response ?? error('File not found', 404);
+}
+
+/** A key asked for through a folder link: same link, but scoped to its folder. */
+async function folderLinkKey(
+  env: Env,
+  request: Request,
+  token: string,
+  rawKey: string | null,
+): Promise<{ key: string } | null> {
+  const link = await folderLinkScope(env, token);
+  if (!link) return null;
+  if (link.passwordHash && !(await hasAccessCookie(request, env, token))) return null;
+
+  const key = rawKey ?? '';
+  if (!key || !isUnder(folderOf(key), link.folder)) return null;
+
+  const excluded = await getExcludedFolders(env);
+  if (isExcluded(folderOf(key), excluded)) return null;
+
+  return (await headObject(env, key)) ? { key } : null;
+}
+
+export async function handleFolderShareDownload(request: Request, env: Env, token: string, url: URL): Promise<Response> {
+  const resolved = await folderLinkKey(env, request, token, url.searchParams.get('key'));
+  if (!resolved) return error('File not found', 404);
+  const response = await serveObject(request, env.VAULT_BUCKET, resolved.key, {
+    name: nameOf(resolved.key),
+    disposition: 'attachment',
+    cacheControl: 'private, max-age=0',
+  });
+  return response ?? error('File not found', 404);
+}
+
+export async function handleFolderSharePreview(request: Request, env: Env, token: string, url: URL): Promise<Response> {
+  const resolved = await folderLinkKey(env, request, token, url.searchParams.get('key'));
+  if (!resolved) return error('File not found', 404);
+  const response = await serveObject(request, env.VAULT_BUCKET, resolved.key, {
+    name: nameOf(resolved.key),
+    disposition: 'inline',
+    cacheControl: 'private, max-age=3600',
+  });
+  return response ?? error('File not found', 404);
+}
+
+// ─── Clean URLs (`/<folder>/<file>`) ─────────────────────────────────
+
+/**
+ * SEO-friendly direct links only work for files inside a publicly shared
+ * folder - otherwise a guessed path would be a download, which is exactly the
+ * leak this rewrite exists to close.
+ */
+export async function handleCleanDownload(request: Request, env: Env, rawPath: string): Promise<Response> {
+  let key: string;
   try {
-    decodedPath = decodeURIComponent(url.pathname.slice(1));
+    key = rawPath.split('/').map((part) => decodeURIComponent(part)).join('/');
   } catch {
-    return null;
+    return error('File not found', 404);
+  }
+  if (!key || key.includes('..')) return error('File not found', 404);
+
+  const head = await headObject(env, key);
+  if (!head) return error('File not found', 404);
+
+  const folder = folderOf(key);
+  const [shared, excluded] = await Promise.all([getSharedFolders(env), getExcludedFolders(env)]);
+  if (folder === ROOT || !isFolderShared(folder, shared, excluded)) {
+    return error('File not found', 404);
   }
 
-  if (!decodedPath || !decodedPath.includes('/')) return null;
-
-  const lastSlash = decodedPath.lastIndexOf('/');
-  const folder = decodedPath.substring(0, lastSlash);
-  const fileName = decodedPath.substring(lastSlash + 1);
-  if (!folder || !fileName) return null;
-
-  const sharedFolders = await getSharedFolders(env);
-  const excludedFolders = await getExcludedFolders(env);
-  if (!isFolderShared(folder, sharedFolders, excludedFolders)) return null;
-
-  const meta = await findFileByPath(env, folder, fileName);
-  if (!meta) return null;
-
-  meta.downloads++;
-  await env.VAULT_KV.put(KV_PREFIX.FILE + meta.id, JSON.stringify(meta));
-  return serveR2File(request, env.VAULT_BUCKET, meta.key, meta.name, 'attachment', 'public, max-age=14400', meta.type || getMimeType(meta.name));
+  const response = await serveObject(request, env.VAULT_BUCKET, key, {
+    name: nameOf(key),
+    disposition: 'attachment',
+    cacheControl: 'public, max-age=300',
+  });
+  return response ?? error('File not found', 404);
 }
 
-async function findFileByPath(env: Env, folder: string, fileName: string): Promise<FileMeta | null> {
+// ─── Guest folder endpoints ──────────────────────────────────────────
+
+export async function handleGuestFolder(url: URL, env: Env): Promise<Response> {
+  const path = url.searchParams.get('path') ?? '';
+  const [shared, excluded] = await Promise.all([getSharedFolders(env), getExcludedFolders(env)]);
+  if (!isFolderShared(normalizeFolder(path), shared, excluded)) return error('Folder not found', 404);
+
+  const view = await guestFolderView(env, path, { root: sharedRoot(path, shared), publicRoot: true });
+  if (!view) return error('Folder not found', 404);
+  return json(view, 200, 'public, max-age=15');
+}
+
+function sharedRoot(path: string, shared: Set<string>): string {
+  const normalized = normalizeFolder(path);
+  const ancestors: string[] = [];
+  let current = normalized;
+  while (current) {
+    ancestors.unshift(current);
+    const slash = current.lastIndexOf('/');
+    if (slash < 0) break;
+    current = current.slice(0, slash);
+  }
+  return ancestors.find((folder) => shared.has(folder)) ?? normalized;
+}
+
+/**
+ * The guest index: every file the owner explicitly shared, plus the shared
+ * folders a guest may open.
+ *
+ * A per-file link is an explicit decision by the owner, so it is listed even
+ * when the file happens to sit in a folder that is not public - the old code
+ * filtered these out by accident and the guest page silently lost entries.
+ */
+export async function handleGuestIndex(env: Env): Promise<Response> {
+  const settings = await getSettings(env);
+  const shared = await getSharedFolders(env);
+  const excluded = await getExcludedFolders(env);
+
+  const files: FileMeta[] = [];
   let cursor: string | undefined;
   for (;;) {
-    const result = await env.VAULT_KV.list({ prefix: KV_PREFIX.FILE, limit: 1000, cursor });
-    for (const key of result.keys) {
-      const raw = await env.VAULT_KV.get(key.name);
+    const page = await env.VAULT_KV.list({ prefix: KV_PREFIX.SHARE, cursor, limit: 1000 });
+    const tokens = page.keys.map((entry) => entry.name.slice(KV_PREFIX.SHARE.length));
+    const values = await Promise.all(page.keys.map((entry) => env.VAULT_KV.get(entry.name)));
+    for (let i = 0; i < values.length; i++) {
+      const raw = values[i];
       if (!raw) continue;
-      const meta: FileMeta = JSON.parse(raw);
-      if (meta.folder === folder && meta.name === fileName) return meta;
+      try {
+        const record = JSON.parse(raw) as { key: string; expiresAt: string | null; downloads: number };
+        if (record.expiresAt && Date.parse(record.expiresAt) <= Date.now()) continue;
+        const head = await headObject(env, record.key);
+        if (!head) continue;
+        files.push({
+          ...metaFromObject(head),
+          shareToken: tokens[i],
+          downloads: record.downloads ?? 0,
+        });
+      } catch {
+        // skip unreadable record
+      }
     }
-    if (result.list_complete) break;
-    cursor = result.cursor;
+    if (page.list_complete) break;
+    cursor = page.cursor;
   }
-  return null;
+
+  return json({
+    files,
+    sharedFolders: [...shared],
+    settings: { showLoginButton: settings.showLoginButton !== false },
+  }, 200, 'public, max-age=15');
 }
