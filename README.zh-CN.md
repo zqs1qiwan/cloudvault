@@ -6,11 +6,11 @@
 
 # CloudVault
 
-基于 Cloudflare R2 的私有云盘。上传、整理、分享文件，也能通过 WebDAV 挂载到电脑；界面支持中英双语。
+基于 Cloudflare Workers + R2 的开源私有云盘。上传、整理、分享文件，也能通过 WebDAV 挂载到电脑；界面支持中英双语。
 
 [中文](README.zh-CN.md) · [English](README.md) · [使用文档](https://github.com/zqs1qiwan/cloudvault/wiki)
 
-`v1.14.0` · `Cloudflare Workers + R2` · `MIT`
+`v1.14.1` · `Cloudflare Workers + R2` · `MIT`
 
 ## 主要功能
 

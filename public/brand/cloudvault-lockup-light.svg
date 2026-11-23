@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" aria-label="CloudVault">
-  <image href="cloudvault-mark.svg" x="36" y="66" width="168" height="168"/>
-  <text x="232" y="166" font-family="Outfit, Arial, sans-serif" font-size="92" font-weight="600" letter-spacing="-1.5" fill="#0B1018">CloudVault</text>
-  <text x="237" y="216" font-family="JetBrains Mono, Consolas, monospace" font-size="22" font-weight="500" letter-spacing="6.4" fill="#0088AA">PRIVATE CLOUD STORAGE</text>
-  <line x1="237" y1="244" x2="812" y2="244" stroke="#0088AA" stroke-opacity="0.3" stroke-width="2"/>
+  <g transform="translate(56 70) scale(0.3125)">
+    <g transform="translate(-38.4 -38.4) scale(1.15)">
+      <path fill="#F38020" fill-rule="evenodd" d="M140 360C105 360 78 333 78 300C78 266 105 240 139 240C152 184 200 144 258 144C322 144 374 196 378 258C414 262 440 290 440 320C440 342 423 360 398 360ZM230 256A26 26 0 0 1 282 256V314A26 26 0 0 1 230 314Z"/>
+    </g>
+  </g>
+  <text x="250" y="190" fill="#0B1018" font-family="Arial, Helvetica, sans-serif" font-size="94" font-weight="700" letter-spacing="-2.4"><tspan fill="#F38020">Cloud</tspan>Vault</text>
 </svg>
-

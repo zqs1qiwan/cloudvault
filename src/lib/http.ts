@@ -79,7 +79,7 @@ export function preflight(): Response {
 /** Extensions the Worker lets through to R2-backed static assets. */
 const STATIC_EXTENSIONS = new Set([
   '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.avif',
-  '.woff', '.woff2', '.ttf', '.eot', '.otf', '.map', '.txt', '.webmanifest',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf', '.map', '.txt',
 ]);
 
 export function isStaticAsset(pathname: string): boolean {

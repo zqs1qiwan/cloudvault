@@ -6,11 +6,11 @@
 
 # CloudVault
 
-Private cloud storage on Cloudflare R2. Upload, organize, share and mount your files over WebDAV — with a bilingual interface.
+Open-source private cloud storage for Cloudflare Workers + R2. Upload, organize, share and mount your files over WebDAV — with a bilingual interface.
 
 [English](README.md) · [中文](README.zh-CN.md) · [Documentation](https://github.com/zqs1qiwan/cloudvault/wiki)
 
-`v1.14.0` · `Cloudflare Workers + R2` · `MIT`
+`v1.14.1` · `Cloudflare Workers + R2` · `MIT`
 
 ## What you get
 

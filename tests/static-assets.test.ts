@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isStaticAsset } from '../src/lib/http';
 
 describe('static asset routing', () => {
-  it('serves the web app manifest and brand files', () => {
-    expect(isStaticAsset('/manifest.webmanifest')).toBe(true);
+  it('serves the brand files', () => {
     expect(isStaticAsset('/favicon.svg')).toBe(true);
     expect(isStaticAsset('/brand/cloudvault-mark.png')).toBe(true);
     expect(isStaticAsset('/og-image.png')).toBe(true);

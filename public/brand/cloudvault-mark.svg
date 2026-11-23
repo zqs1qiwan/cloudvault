@@ -1,37 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" aria-label="CloudVault">
-  <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#182635"/>
-      <stop offset="0.55" stop-color="#0E1622"/>
-      <stop offset="1" stop-color="#0B1018"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.46" r="0.52">
-      <stop offset="0" stop-color="#00E5FF" stop-opacity="0.22"/>
-      <stop offset="0.55" stop-color="#00E5FF" stop-opacity="0.07"/>
-      <stop offset="1" stop-color="#00E5FF" stop-opacity="0"/>
-    </radialGradient>
-    <mask id="cloudCut">
-      <path d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15z" transform="translate(126 114) scale(11)" fill="#fff"/>
-      <circle cx="256" cy="238" r="25" fill="#000"/>
-      <path d="M244 250h24l7 58h-38z" fill="#000"/>
-    </mask>
-  </defs>
-
-  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#tile)"/>
-  <rect x="9" y="9" width="494" height="494" rx="111" fill="none" stroke="#00E5FF" stroke-opacity="0.22" stroke-width="2"/>
-  <circle cx="256" cy="256" r="188" fill="url(#glow)"/>
-
-  <circle cx="256" cy="256" r="164" fill="none" stroke="#00E5FF" stroke-opacity="0.36" stroke-width="4"/>
-  <g fill="#FFB800">
-    <rect x="250" y="58" width="12" height="26" rx="6" opacity="0.9"/>
-    <rect x="250" y="428" width="12" height="26" rx="6" opacity="0.9"/>
-    <rect x="58" y="250" width="26" height="12" rx="6" opacity="0.9"/>
-    <rect x="428" y="250" width="26" height="12" rx="6" opacity="0.9"/>
+  <g transform="translate(-38.4 -38.4) scale(1.15)">
+    <path fill="#F38020" fill-rule="evenodd" d="M140 360C105 360 78 333 78 300C78 266 105 240 139 240C152 184 200 144 258 144C322 144 374 196 378 258C414 262 440 290 440 320C440 342 423 360 398 360ZM230 256A26 26 0 0 1 282 256V314A26 26 0 0 1 230 314Z"/>
   </g>
-
-  <g mask="url(#cloudCut)">
-    <path d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15z" transform="translate(126 114) scale(11)" fill="#F6E7BE"/>
-  </g>
-  <circle cx="256" cy="238" r="25" fill="#0B1018"/>
-  <path d="M244 250h24l7 58h-38z" fill="#0B1018"/>
 </svg>

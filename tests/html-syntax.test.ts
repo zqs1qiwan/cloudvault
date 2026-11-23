@@ -63,19 +63,14 @@ describe('HTML inline scripts', () => {
       expect(html, `${name} must load the UI language layer`).toContain('/js/i18n.js');
       expect(html, `${name} must expose a language switch`).toContain('data-lang-toggle');
       expect(html, `${name} must declare a favicon`).toContain('rel="icon"');
-      expect(html, `${name} must declare an Apple touch icon`).toContain('rel="apple-touch-icon"');
-      expect(html, `${name} must declare the web app manifest`).toContain('rel="manifest"');
       expect(html, `${name} must declare a social preview image`).toContain('property="og:image"');
     }
     for (const file of [
       'public/favicon.svg',
       'public/favicon.ico',
-      'public/apple-touch-icon.png',
-      'public/icon-192.png',
-      'public/icon-512.png',
       'public/og-image.png',
-      'public/manifest.webmanifest',
       'public/brand/cloudvault-mark.svg',
+      'public/brand/cloudvault-mark-small.svg',
       'public/brand/cloudvault-lockup-dark.svg',
       'public/brand/cloudvault-lockup-light.svg',
     ]) {
