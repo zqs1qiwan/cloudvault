@@ -10,7 +10,7 @@ Open-source private cloud storage for Cloudflare Workers + R2. Upload, organize,
 
 [English](README.md) · [中文](README.zh-CN.md) · [Documentation](https://github.com/zqs1qiwan/cloudvault/wiki)
 
-`v1.14.1` · `Cloudflare Workers + R2` · `MIT`
+`v1.14.2` · `Cloudflare Workers + R2` · `MIT`
 
 ## What you get
 

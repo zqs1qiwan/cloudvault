@@ -35,6 +35,7 @@ describe('brand artwork', () => {
       const svg = readFileSync(file, 'utf8');
       expect(svg).toContain('CloudVault');
       expect(svg).toContain('M140 360');
+      expect(svg).toContain('M256 222');
       expect(svg).toContain('<tspan fill="#F38020">Cloud</tspan>Vault');
     }
   });

@@ -10,7 +10,7 @@
 
 [中文](README.zh-CN.md) · [English](README.md) · [使用文档](https://github.com/zqs1qiwan/cloudvault/wiki)
 
-`v1.14.1` · `Cloudflare Workers + R2` · `MIT`
+`v1.14.2` · `Cloudflare Workers + R2` · `MIT`
 
 ## 主要功能
 
