@@ -205,6 +205,24 @@ html.light .glow-orbs::after { background: rgba(var(--color-accent-rgb), 0.02); 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 
+/* ─── Brand mark ──────────────────────────────────────────────────── */
+/*
+ * The configured logo is normally light artwork on a transparent canvas. The
+ * tinted plate reads fine on the dark theme, but on the light theme the same
+ * logo dissolves into the white page and looks like a broken image. Every
+ * brand icon therefore sits on one shared plate, which turns deliberately dark
+ * in the light theme.
+ */
+.brand-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-soft);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.22);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+html.light .brand-mark { background: #151D29; border-color: rgba(255, 255, 255, 0.16); }
+
 /* ─── App header & toolbar ─────────────────────────────────────────── */
 /*
  * Both bars used to be plain flex rows whose right-hand cluster contained
