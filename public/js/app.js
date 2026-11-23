@@ -176,7 +176,7 @@ function cloudvault() {
     },
 
     async deleteUser(user) {
-      if (!confirm('Delete the account "' + user.username + '"? Their sessions will be signed out.')) return;
+      if (!confirm(window.cvT ? window.cvT('Delete the account "' + user.username + '"? Their sessions will be signed out.', '删除账号“' + user.username + '”？其登录会话将退出。') : 'Delete the account "' + user.username + '"? Their sessions will be signed out.')) return;
       const res = await this.apiFetch('/api/users/' + user.id, { method: 'DELETE' });
       if (!res) return;
       if (res.ok) {
@@ -335,7 +335,7 @@ function cloudvault() {
             '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>' +
             sharedBadge +
           '</span>' +
-          '<span class="truncate">' + this._escHtml(node.name) + '</span>' +
+          '<span class="truncate" data-no-i18n>' + this._escHtml(node.name) + '</span>' +
         '</div>';
         if (hasChildren && isExpanded) {
           html += this.renderFolderTree(node.children, depth + 1);
@@ -1165,13 +1165,14 @@ function cloudvault() {
       const now = new Date();
       const diff = now - date;
       const mins = Math.floor(diff / 60000);
-      if (mins < 1) return 'Just now';
-      if (mins < 60) return mins + 'm ago';
+      const zh = window.CV_LANG === 'zh';
+      if (mins < 1) return zh ? '刚刚' : 'Just now';
+      if (mins < 60) return zh ? mins + ' 分钟前' : mins + 'm ago';
       const hours = Math.floor(mins / 60);
-      if (hours < 24) return hours + 'h ago';
+      if (hours < 24) return zh ? hours + ' 小时前' : hours + 'h ago';
       const days = Math.floor(hours / 24);
-      if (days < 7) return days + 'd ago';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+      if (days < 7) return zh ? days + ' 天前' : days + 'd ago';
+      return date.toLocaleDateString(zh ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
     },
 
     getFileCategory(type, name) {
@@ -1186,6 +1187,11 @@ function cloudvault() {
       if (type.startsWith('text/') || type.includes('javascript') || type.includes('json') || type.includes('xml') ||
           name?.match(/\.(js|ts|py|rb|go|rs|java|c|cpp|h|sh|yaml|yml|json|toml|md|html|css|sql|swift|kt|php|lua|tsx|jsx)$/i)) return 'code';
       return 'other';
+    },
+
+    fileTypeLabel(type, name) {
+      const category = this.getFileCategory(type, name);
+      return category.charAt(0).toUpperCase() + category.slice(1);
     },
 
     getFileIcon(type, name) {

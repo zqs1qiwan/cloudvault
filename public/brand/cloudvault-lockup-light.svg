@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" aria-label="CloudVault">
+  <image href="cloudvault-mark.svg" x="36" y="66" width="168" height="168"/>
+  <text x="232" y="166" font-family="Outfit, Arial, sans-serif" font-size="92" font-weight="600" letter-spacing="-1.5" fill="#0B1018">CloudVault</text>
+  <text x="237" y="216" font-family="JetBrains Mono, Consolas, monospace" font-size="22" font-weight="500" letter-spacing="6.4" fill="#0088AA">PRIVATE CLOUD STORAGE</text>
+  <line x1="237" y1="244" x2="812" y2="244" stroke="#0088AA" stroke-opacity="0.3" stroke-width="2"/>
+</svg>
+

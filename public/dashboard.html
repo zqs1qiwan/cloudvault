@@ -9,6 +9,22 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <title>CloudVault</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName}catch{}</script>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0B1018" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F8FAFC" media="(prefers-color-scheme: light)">
+  <meta name="description" content="CloudVault is a private cloud storage for Cloudflare R2, with WebDAV, share links and a bilingual interface.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CloudVault">
+  <meta property="og:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta property="og:image" content="https://pan.laobaitv.net/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CloudVault">
+  <meta name="twitter:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta name="twitter:image" content="https://pan.laobaitv.net/og-image.png">
+  <script src="/js/i18n.js"></script>
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/vendor/prism-tomorrow.min.css">
@@ -27,8 +43,8 @@
         </button>
         <div class="flex items-center gap-2 min-w-0">
           <template x-if="!_branding.siteIconUrl">
-            <div class="brand-mark w-7 h-7 flex-shrink-0">
-              <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
+            <div class="w-7 h-7 flex-shrink-0">
+              <img src="/brand/cloudvault-mark.svg" alt="" class="w-full h-full object-contain">
             </div>
           </template>
           <template x-if="_branding.siteIconUrl">
@@ -36,13 +52,14 @@
               <img :src="_branding.siteIconUrl" class="w-full h-full object-contain">
             </div>
           </template>
-          <span class="font-semibold text-sm hidden sm:inline truncate header-title" x-text="_branding.siteName"></span>
+          <span class="font-semibold text-sm hidden sm:inline truncate header-title" x-text="_branding.siteName" data-no-i18n></span>
         </div>
       </div>
 
       <div class="header-meta hidden md:block" x-text="stats.totalFiles + ' files · ' + formatBytes(stats.totalSize)" title="Files and total size in this vault"></div>
 
       <div class="header-actions">
+        <button data-lang-toggle class="header-btn lang-toggle" style="color:var(--text-muted)" aria-label="Switch language">EN</button>
         <button @click="toggleDarkMode()" class="header-btn" style="color:var(--text-muted)" title="Toggle theme">
           <svg x-show="darkMode" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
           <svg x-show="!darkMode" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"/></svg>
@@ -193,8 +210,8 @@
                   <span class="text-3xl" x-text="getFileIcon(file.type, file.name)"></span>
                 </template>
               </div>
-              <p class="text-xs font-medium truncate" x-text="file.name" :title="file.name"></p>
-              <p x-show="searchQuery && file.folder !== 'root'" class="text-xs truncate mt-0.5 cursor-pointer hover:underline" style="color:var(--text-muted)" x-text="file.folder" :title="file.folder" @click.stop="navigateFolder(file.folder)"></p>
+              <p class="text-xs font-medium truncate" x-text="file.name" :title="file.name" data-no-i18n></p>
+              <p x-show="searchQuery && file.folder !== 'root'" class="text-xs truncate mt-0.5 cursor-pointer hover:underline" style="color:var(--text-muted)" x-text="file.folder" :title="file.folder" data-no-i18n @click.stop="navigateFolder(file.folder)"></p>
               <div class="flex items-center justify-between mt-1">
                 <span class="text-xs" style="color:var(--text-muted)" x-text="formatBytes(file.size)"></span>
                 <span x-show="file.shareToken" class="badge badge-link cursor-pointer" @click.stop="shareFile(file)">🔗 link</span>
@@ -227,12 +244,12 @@
                     <div class="flex items-center gap-2">
                       <span x-text="getFileIcon(file.type, file.name)"></span>
                       <div class="min-w-0">
-                        <span class="truncate block" x-text="file.name"></span>
-                        <span x-show="searchQuery && file.folder !== 'root'" class="text-xs block truncate cursor-pointer hover:underline" style="color:var(--text-muted)" x-text="file.folder" @click.stop="navigateFolder(file.folder)"></span>
+                        <span class="truncate block" x-text="file.name" data-no-i18n></span>
+                        <span x-show="searchQuery && file.folder !== 'root'" class="text-xs block truncate cursor-pointer hover:underline" style="color:var(--text-muted)" x-text="file.folder" data-no-i18n @click.stop="navigateFolder(file.folder)"></span>
                       </div>
                     </div>
                   </td>
-                  <td class="py-2 px-3 hidden sm:table-cell"><span class="type-pill" :class="'type-pill-' + getFileCategory(file.type, file.name)" x-text="getFileCategory(file.type, file.name)"></span></td>
+                  <td class="py-2 px-3 hidden sm:table-cell"><span class="type-pill" :class="'type-pill-' + getFileCategory(file.type, file.name)" x-text="fileTypeLabel(file.type, file.name)"></span></td>
                   <td class="py-2 px-3 hidden sm:table-cell" style="color:var(--text-muted)" x-text="formatBytes(file.size)"></td>
                   <td class="py-2 px-3 hidden md:table-cell" style="color:var(--text-muted)" x-text="formatDate(file.uploadedAt)"></td>
                   <td class="py-2 px-3 hidden lg:table-cell">
@@ -284,7 +301,7 @@
   <div x-show="shareModal.show" x-transition class="modal-backdrop" @click.self="shareModal.show = false">
     <div class="modal-content">
       <h3 class="text-lg font-semibold mb-4">Share File</h3>
-      <p class="text-sm mb-4 truncate" style="color:var(--text-secondary)" x-text="shareModal.file?.name"></p>
+      <p class="text-sm mb-4 truncate" style="color:var(--text-secondary)" x-text="shareModal.file?.name" data-no-i18n></p>
 
       <template x-if="shareModal.file?.shareToken">
         <div>
@@ -495,7 +512,7 @@
         <template x-for="f in folders" :key="f.name">
           <div class="sidebar-item" :class="{'active': moveModal.targetFolder === f.name}" @click="moveModal.targetFolder = f.name" style="cursor:pointer" :style="'padding-left:' + (12 + (f.name.split('/').length - 1) * 16) + 'px'">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
-            <span class="truncate" x-text="f.name.split('/').pop()"></span>
+            <span class="truncate" x-text="f.name.split('/').pop()" data-no-i18n></span>
           </div>
         </template>
       </div>
@@ -510,7 +527,7 @@
   <div x-show="folderShareLinkModal.show" x-transition class="modal-backdrop" @click.self="folderShareLinkModal.show = false">
     <div class="modal-content">
       <h3 class="text-lg font-semibold mb-4">Share Folder Link</h3>
-      <p class="text-sm mb-4 truncate" style="color:var(--text-secondary)" x-text="folderShareLinkModal.folder"></p>
+      <p class="text-sm mb-4 truncate" style="color:var(--text-secondary)" x-text="folderShareLinkModal.folder" data-no-i18n></p>
 
       <template x-if="folderShareLinkModal.token">
         <div>
@@ -603,7 +620,7 @@
       <div class="max-h-56 overflow-y-auto mb-3">
         <template x-for="u in usersModal.users" :key="u.id">
           <div class="flex items-center gap-2 py-2 border-b text-sm" style="border-color:var(--border)">
-            <span class="flex-1 truncate" x-text="u.username"></span>
+            <span class="flex-1 truncate" x-text="u.username" data-no-i18n></span>
             <span class="badge" x-text="u.role"></span>
             <select class="text-xs" :value="u.role" @change="changeUserRole(u, $event.target.value)">
               <option value="user">user</option>
@@ -678,7 +695,7 @@
       <template x-for="upload in uploads" :key="upload.id">
         <div class="upload-item">
           <div class="flex-1 min-w-0">
-            <p class="text-xs font-medium truncate" x-text="upload.name"></p>
+            <p class="text-xs font-medium truncate" x-text="upload.name" data-no-i18n></p>
             <div class="progress-bar mt-1">
               <div class="fill" :style="'width:' + upload.progress + '%'"></div>
             </div>

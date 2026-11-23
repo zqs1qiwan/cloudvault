@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" aria-label="CloudVault">
+  <defs>
+    <linearGradient id="t" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#182635"/>
+      <stop offset="1" stop-color="#0B1018"/>
+    </linearGradient>
+    <mask id="cut">
+      <path d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15z" transform="translate(14 11) scale(1.65)" fill="#fff"/>
+      <circle cx="32" cy="29" r="4.4" fill="#000"/>
+      <path d="M30 31.5h4l1.2 8h-6.4z" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#t)"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="13.5" fill="none" stroke="#00E5FF" stroke-opacity="0.24" stroke-width="1"/>
+  <g mask="url(#cut)">
+    <path d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15z" transform="translate(14 11) scale(1.65)" fill="#F6E7BE"/>
+  </g>
+  <circle cx="32" cy="29" r="4.4" fill="#0B1018"/>
+  <path d="M30 31.5h4l1.2 8h-6.4z" fill="#0B1018"/>
+</svg>

@@ -7,6 +7,22 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <title>CloudVault — Shared Files</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName+' — Shared Files'}catch{}</script>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0B1018" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F8FAFC" media="(prefers-color-scheme: light)">
+  <meta name="description" content="CloudVault is a private cloud storage for Cloudflare R2, with WebDAV, share links and a bilingual interface.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CloudVault">
+  <meta property="og:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta property="og:image" content="https://pan.laobaitv.net/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CloudVault">
+  <meta name="twitter:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta name="twitter:image" content="https://pan.laobaitv.net/og-image.png">
+  <script src="/js/i18n.js"></script>
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/app.css">
   <script defer src="/js/vendor/alpine.min.js"></script>
@@ -41,8 +57,8 @@
     <div class="max-w-5xl mx-auto flex items-center justify-between">
       <div class="flex items-center gap-2">
         <template x-if="!branding.siteIconUrl">
-          <div class="brand-mark w-7 h-7">
-            <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
+          <div class="w-7 h-7">
+            <img src="/brand/cloudvault-mark.svg" alt="" class="w-full h-full object-contain">
           </div>
         </template>
         <template x-if="branding.siteIconUrl">
@@ -50,10 +66,11 @@
             <img :src="branding.siteIconUrl" class="w-full h-full object-contain">
           </div>
         </template>
-        <span class="font-semibold text-sm" x-text="branding.siteName" style="color:var(--text-primary)"></span>
+        <span class="font-semibold text-sm" x-text="branding.siteName" style="color:var(--text-primary)" data-no-i18n></span>
         <span class="text-xs ml-1" style="color:var(--text-muted)">Shared Files</span>
       </div>
       <div class="flex items-center gap-2">
+        <button data-lang-toggle class="lang-btn" aria-label="Switch language">EN</button>
         <button @click="toggleDark()" class="p-2 rounded-lg transition-colors" style="color:var(--text-muted)" title="Toggle theme">
           <svg x-show="darkMode" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
           <svg x-show="!darkMode" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"/></svg>
@@ -76,7 +93,7 @@
         <template x-for="(seg, idx) in pathSegments" :key="idx">
           <div class="flex items-center gap-2">
             <span class="text-xs" style="color:var(--text-muted)">&rsaquo;</span>
-            <button class="folder-tag" :class="{ active: idx === pathSegments.length - 1 }" @click="navigateTo(pathSegments.slice(0, idx + 1).join('/'))" x-text="seg"></button>
+            <button class="folder-tag" :class="{ active: idx === pathSegments.length - 1 }" @click="navigateTo(pathSegments.slice(0, idx + 1).join('/'))" x-text="seg" data-no-i18n></button>
           </div>
         </template>
       </div>
@@ -105,7 +122,7 @@
       <!-- SEARCH NO RESULTS -->
       <div x-show="!loading && searchQuery && filteredFiles.length === 0 && allFiles.length > 0" x-cloak class="text-center py-16">
         <svg class="w-12 h-12 mx-auto mb-3" style="color:var(--text-muted);opacity:0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-        <p class="text-sm" style="color:var(--text-muted)">No files match &ldquo;<span x-text="searchQuery" class="font-medium" style="color:var(--text-secondary)"></span>&rdquo;</p>
+        <p class="text-sm" style="color:var(--text-muted)">No files match &ldquo;<span x-text="searchQuery" class="font-medium" style="color:var(--text-secondary)" data-no-i18n></span>&rdquo;</p>
       </div>
 
       <!-- FILE LIST -->
@@ -133,7 +150,7 @@
               <svg class="w-5 h-5 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
             </div>
             <div class="flex-1 min-w-0">
-              <span class="text-sm font-medium truncate block" style="color:var(--text-primary)" x-text="f.split('/').pop()"></span>
+              <span class="text-sm font-medium truncate block" style="color:var(--text-primary)" x-text="f.split('/').pop()" data-no-i18n></span>
             </div>
             <div class="w-20 text-right hidden sm:block"><span class="text-xs" style="color:var(--text-muted)">Folder</span></div>
             <div class="w-28 hidden md:block"></div>
@@ -150,7 +167,7 @@
               <div x-html="getFileIcon(file.type, file.name)"></div>
             </div>
             <div class="flex-1 min-w-0">
-              <span class="text-sm font-medium truncate block" style="color:var(--text-primary)" x-text="file.name" :title="file.name"></span>
+              <span class="text-sm font-medium truncate block" style="color:var(--text-primary)" x-text="file.name" :title="file.name" data-no-i18n></span>
               <span class="text-xs sm:hidden" style="color:var(--text-muted)" x-text="formatBytes(file.size)"></span>
             </div>
             <div class="w-20 text-right hidden sm:block">

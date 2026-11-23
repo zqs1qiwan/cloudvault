@@ -7,6 +7,22 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <title>CloudVault — Shared File</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName+' — Shared File'}catch{}</script>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0B1018" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F8FAFC" media="(prefers-color-scheme: light)">
+  <meta name="description" content="CloudVault is a private cloud storage for Cloudflare R2, with WebDAV, share links and a bilingual interface.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CloudVault">
+  <meta property="og:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta property="og:image" content="https://pan.laobaitv.net/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CloudVault">
+  <meta name="twitter:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta name="twitter:image" content="https://pan.laobaitv.net/og-image.png">
+  <script src="/js/i18n.js"></script>
   <link rel="stylesheet" href="/css/tailwind.css">
   <style>
     @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
@@ -27,10 +43,11 @@
 
   <header class="border-b border-[var(--border)] px-4 py-3">
     <div class="max-w-4xl mx-auto flex items-center gap-2">
-      <div id="brand-icon" class="brand-mark w-7 h-7">
-        <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
+      <div id="brand-icon" class="w-7 h-7">
+        <img src="/brand/cloudvault-mark.svg" alt="" class="w-full h-full object-contain">
       </div>
       <span id="brand-name" class="font-semibold text-sm text-[var(--text-primary)]">CloudVault</span>
+      <button data-lang-toggle class="lang-btn ml-auto" aria-label="Switch language">EN</button>
     </div>
   </header>
 
@@ -57,7 +74,7 @@
           <div class="flex items-start gap-4">
             <div class="w-12 h-12 rounded-md bg-[var(--bg-tertiary)] flex items-center justify-center text-2xl flex-shrink-0" id="file-icon"></div>
             <div class="flex-1 min-w-0">
-              <h1 class="text-lg font-semibold text-[var(--text-primary)] truncate" id="file-name"></h1>
+              <h1 class="text-lg font-semibold text-[var(--text-primary)] truncate" id="file-name" data-no-i18n></h1>
               <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-[var(--text-muted)]">
                 <span id="file-size"></span>
                 <span>&middot;</span>
@@ -86,7 +103,7 @@
             <div class="w-10 h-10 rounded-md bg-[var(--bg-tertiary)] flex items-center justify-center text-xl flex-shrink-0">📁</div>
             <div class="flex-1 min-w-0">
               <h1 class="text-lg font-semibold text-[var(--text-primary)] truncate" id="folder-title"></h1>
-              <div id="folder-breadcrumb" class="flex items-center gap-1 mt-1 text-sm text-[var(--text-muted)] flex-wrap"></div>
+              <div id="folder-breadcrumb" data-no-i18n class="flex items-center gap-1 mt-1 text-sm text-[var(--text-muted)] flex-wrap"></div>
             </div>
             <button id="folder-copy-btn" class="copy-btn px-3 py-2 text-sm" title="Copy link">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
@@ -95,7 +112,7 @@
 
           <div id="folder-subfolders" class="space-y-1 mb-3"></div>
 
-          <div id="folder-files" class="space-y-1"></div>
+          <div id="folder-files" data-no-i18n class="space-y-1"></div>
 
           <div id="folder-empty" class="hidden text-center py-8">
             <p class="text-[var(--text-muted)] text-sm">This folder is empty</p>

@@ -7,6 +7,22 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <title>404 — Page Not Found</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title='404 — '+_b.siteName}catch{}</script>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0B1018" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F8FAFC" media="(prefers-color-scheme: light)">
+  <meta name="description" content="CloudVault is a private cloud storage for Cloudflare R2, with WebDAV, share links and a bilingual interface.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CloudVault">
+  <meta property="og:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta property="og:image" content="https://pan.laobaitv.net/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CloudVault">
+  <meta name="twitter:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta name="twitter:image" content="https://pan.laobaitv.net/og-image.png">
+  <script src="/js/i18n.js"></script>
   <link rel="stylesheet" href="/css/tailwind.css">
   <link rel="stylesheet" href="/css/app.css">
 </head>
@@ -16,11 +32,12 @@
   <header class="border-b border-[var(--border)] px-4 py-3">
     <div class="max-w-5xl mx-auto flex items-center gap-2">
       <a href="/" class="flex items-center gap-2 hover:opacity-80 transition-opacity">
-        <div id="brand-icon" class="w-7 h-7 rounded-lg flex items-center justify-center bg-transparent border border-accent-400/20">
-          <svg class="w-4 h-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></svg>
+        <div id="brand-icon" class="w-7 h-7 overflow-hidden">
+          <img src="/brand/cloudvault-mark.svg" alt="" class="w-full h-full object-contain">
         </div>
         <span id="brand-name" class="font-semibold text-sm text-[var(--text-primary)]">CloudVault</span>
       </a>
+      <button data-lang-toggle class="lang-btn ml-auto" aria-label="Switch language">EN</button>
     </div>
   </header>
 
@@ -45,7 +62,7 @@
         if (b.siteName) document.getElementById('brand-name').textContent = b.siteName;
         if (b.siteIconUrl) {
           var iconEl = document.getElementById('brand-icon');
-          iconEl.innerHTML = '<img src="' + b.siteIconUrl + '" class="w-full h-full object-contain" onerror="this.parentElement.innerHTML=\'<svg class=\\\'w-4 h-4 text-accent-400\\\' fill=\\\'none\\\' viewBox=\\\'0 0 24 24\\\' stroke=\\\'currentColor\\\' stroke-width=\\\'2\\\'><path stroke-linecap=\\\'round\\\' stroke-linejoin=\\\'round\\\' d=\\\'M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z\\\'/></svg>\'">';
+          iconEl.innerHTML = '<img src="' + b.siteIconUrl + '" class="w-full h-full object-contain" onerror="this.src=\'/brand/cloudvault-mark.svg\'">';
           iconEl.classList.add('overflow-hidden');
         }
       } catch {}

@@ -7,6 +7,22 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <title>CloudVault — Login</title>
   <script>try{var _b=JSON.parse(document.getElementById('branding-data')?.textContent||'{}');if(_b.siteName)document.title=_b.siteName+' — Login'}catch{}</script>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0B1018" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F8FAFC" media="(prefers-color-scheme: light)">
+  <meta name="description" content="CloudVault is a private cloud storage for Cloudflare R2, with WebDAV, share links and a bilingual interface.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CloudVault">
+  <meta property="og:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta property="og:image" content="https://pan.laobaitv.net/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CloudVault">
+  <meta name="twitter:description" content="Private cloud storage for Cloudflare R2. WebDAV, share links, dark and light themes.">
+  <meta name="twitter:image" content="https://pan.laobaitv.net/og-image.png">
+  <script src="/js/i18n.js"></script>
   <link rel="stylesheet" href="/css/tailwind.css">
   <style>
     @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -20,13 +36,11 @@
 </head>
 <body style="font-family:var(--font-body)" class="min-h-screen flex items-center justify-center p-4">
 <div class="glow-orbs"></div>
+<div class="lang-fixed"><button data-lang-toggle class="lang-btn" aria-label="Switch language">EN</button></div>
   <div class="fade-up w-full max-w-sm">
     <div class="text-center mb-8">
-      <div id="brand-icon" class="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-transparent border border-accent-400/20 mb-4">
-        <svg class="w-8 h-8 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 12.75v3m0 0l-1.5-1.5m1.5 1.5l1.5-1.5"/>
-        </svg>
+      <div id="brand-icon" class="inline-flex items-center justify-center w-16 h-16 mb-4 overflow-hidden">
+        <img src="/brand/cloudvault-mark.svg" alt="" class="w-full h-full object-contain">
       </div>
       <h1 id="brand-name" class="text-2xl font-bold text-[var(--text-primary)]">CloudVault</h1>
       <p class="text-[var(--text-muted)] text-sm mt-1">Personal Cloud Storage</p>
