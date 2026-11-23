@@ -76,6 +76,17 @@ export function preflight(): Response {
 
 // ─── Asset HTML ───────────────────────────────────────────────────────
 
+/** Extensions the Worker lets through to R2-backed static assets. */
+const STATIC_EXTENSIONS = new Set([
+  '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.avif',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf', '.map', '.txt', '.webmanifest',
+]);
+
+export function isStaticAsset(pathname: string): boolean {
+  const dot = pathname.lastIndexOf('.');
+  return dot >= 0 && STATIC_EXTENSIONS.has(pathname.slice(dot).toLowerCase());
+}
+
 /**
  * ASSETS.fetch answers 307 for extensionless paths (`/share.html` → `/share`),
  * so a redirect has to be followed to get the real body.

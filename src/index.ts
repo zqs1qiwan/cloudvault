@@ -1,5 +1,5 @@
 import type { Account, Env } from './utils/types';
-import { error, fetchAssetHtml, html, injectBranding, preflight, redirect } from './lib/http';
+import { error, fetchAssetHtml, html, injectBranding, isStaticAsset, preflight, redirect } from './lib/http';
 import { handleLogin, handleLogout, handleSetup, requireUser } from './auth';
 import { bootstrapAccounts } from './lib/accounts';
 import { getSettings } from './api/settings';
@@ -141,16 +141,6 @@ async function cachedPublic(
   cacheable.headers.set('Cache-Control', 'public, max-age=15, s-maxage=60');
   ctx.waitUntil(cache.put(request, cacheable.clone()).catch(() => {}));
   return cacheable;
-}
-
-const STATIC_EXTENSIONS = new Set([
-  '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.avif',
-  '.woff', '.woff2', '.ttf', '.eot', '.otf', '.map', '.txt',
-]);
-
-function isStaticAsset(pathname: string): boolean {
-  const dot = pathname.lastIndexOf('.');
-  return dot >= 0 && STATIC_EXTENSIONS.has(pathname.slice(dot).toLowerCase());
 }
 
 async function notFoundPage(request: Request, env: Env): Promise<Response> {
