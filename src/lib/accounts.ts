@@ -329,7 +329,10 @@ export async function bootstrapAccounts(env: Env): Promise<BootstrapResult> {
     // A concurrent request may have created it first, or a bad secret (empty)
     // was rejected; either way we report readiness from a fresh check.
     console.error('Account bootstrap failed:', err instanceof Error ? err.message : String(err));
-    const ready = await hasAccounts(env);
+    // KV listings are eventually consistent: right after a concurrent request
+    // writes root, hasAccounts() can still report zero and send the user to
+    // /setup with a spurious 409. A point read on the lookup key settles it.
+    const ready = (await hasAccounts(env)) || (await getAccountByUsername(env, 'root')) !== null;
     if (ready) readyCache.set(env, Date.now() + READY_CACHE_MS);
     return { ready, migrated: false };
   }

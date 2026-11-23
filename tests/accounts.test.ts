@@ -96,6 +96,31 @@ describe('first run', () => {
     await expect(claimFirstAdmin(env, { username: 'other', password: 'correct-horse' })).rejects.toThrow('Already initialized');
   });
 
+  it('does not report an uninitialized vault when a concurrent bootstrap already wrote root', async () => {
+    await createAccount(env, {
+      username: 'root',
+      password: 'old-secret',
+      role: 'admin',
+      mustChangePassword: true,
+      allowShortPassword: true,
+    });
+
+    // Mirror KV's eventual consistency: the first two listings still look empty,
+    // which is exactly what a second request in the same instant would see.
+    const realList = kv.list.bind(kv);
+    let stale = 2;
+    kv.list = async (options: { prefix?: string; limit?: number; cursor?: string } = {}) => {
+      if ((options.prefix ?? '') === KV_PREFIX.ACCOUNT && stale > 0) {
+        stale--;
+        return { keys: [], list_complete: true, cursor: '0' };
+      }
+      return realList(options);
+    };
+
+    const result = await bootstrapAccounts({ ...env, ADMIN_PASSWORD: 'old-secret' } as Env);
+    expect(result).toEqual({ ready: true, migrated: false });
+  });
+
   it('turns a legacy ADMIN_PASSWORD into a root account once', async () => {
     const legacy = { ...env, ADMIN_PASSWORD: 'old-secret' } as Env;
     const result = await bootstrapAccounts(legacy);
