@@ -43,7 +43,7 @@ Screenshots from a real demo instance: file management, public access, sharing, 
 </p>
 
 <p align="center">
-  <a href="docs/screenshots/guest-en.png"><img src="docs/screenshots/guest-en.png" alt="Public guest page: shared folders and files without signing in" width="100%"></a>
+  <a href="docs/screenshots/guest-en.png"><img src="docs/screenshots/guest-en-crop.png" alt="Public guest page: shared folders and files without signing in" width="100%"></a>
 </p>
 
 <p align="center">

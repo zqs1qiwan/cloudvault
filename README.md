@@ -43,7 +43,7 @@ CloudVault 是一个跑在 Cloudflare Workers + R2 上的开源私有云盘。Wo
 </p>
 
 <p align="center">
-  <a href="docs/screenshots/guest-zh.png"><img src="docs/screenshots/guest-zh.png" alt="未登录的公开分享页：共享文件夹与文件列表" width="100%"></a>
+  <a href="docs/screenshots/guest-zh.png"><img src="docs/screenshots/guest-zh-crop.png" alt="未登录的公开分享页：共享文件夹与文件列表" width="100%"></a>
 </p>
 
 <p align="center">
