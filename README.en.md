@@ -41,18 +41,22 @@ Screenshots from a real demo instance: file management, public access, sharing, 
 <p align="center">
   <a href="docs/screenshots/dashboard-en.png"><img src="docs/screenshots/dashboard-en.png" alt="CloudVault dashboard: file grid, folder tree, upload and sharing" width="100%"></a>
 </p>
+<p align="center"><strong>File management</strong> · File grid, folder tree, upload and share actions.</p>
 
 <p align="center">
   <a href="docs/screenshots/guest-en.png"><img src="docs/screenshots/guest-en-crop.png" alt="Public guest page: shared folders and files without signing in" width="100%"></a>
 </p>
+<p align="center"><strong>Public guest page</strong> · Browse shared folders and public files without signing in.</p>
 
 <p align="center">
   <a href="docs/screenshots/share-dialog-en.png"><img src="docs/screenshots/share-dialog-en-crop.png" alt="Share dialog with password and expiry" width="100%"></a>
 </p>
+<p align="center"><strong>Sharing settings</strong> · Password protection and expiry for a file.</p>
 
 <p align="center">
   <a href="docs/screenshots/share-page-en.png"><img src="docs/screenshots/share-page-en.png" alt="Public share page with preview and download" width="100%"></a>
 </p>
+<p align="center"><strong>Single-file share page</strong> · Image preview, download and share link.</p>
 
 ## High availability
 
