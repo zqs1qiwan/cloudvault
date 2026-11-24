@@ -81,8 +81,10 @@ describe('HTML inline scripts', () => {
   it('links the English and Chinese README versions to each other', () => {
     const en = readFileSync('README.md', 'utf8');
     const zh = readFileSync('README.zh-CN.md', 'utf8');
-    expect(en).toContain('[中文](README.zh-CN.md)');
-    expect(zh).toContain('[English](README.md)');
+    expect(en).toContain('README.zh-CN.md');
+    expect(en).toContain('中文');
+    expect(zh).toContain('README.md');
+    expect(zh).toContain('English');
     expect(en).toContain('public/brand/cloudvault-lockup-light.svg');
     expect(zh).toContain('public/brand/cloudvault-lockup-light.svg');
   });

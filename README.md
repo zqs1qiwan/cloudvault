@@ -1,27 +1,55 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="public/brand/cloudvault-lockup-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="public/brand/cloudvault-lockup-light.svg">
-  <img alt="CloudVault" src="public/brand/cloudvault-lockup-light.svg" width="720">
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/brand/cloudvault-lockup-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="public/brand/cloudvault-lockup-light.svg">
+    <img alt="CloudVault" src="public/brand/cloudvault-lockup-light.svg" width="720">
+  </picture>
+</p>
 
-# CloudVault
+<h1 align="center">CloudVault</h1>
 
-Open-source private cloud storage for Cloudflare Workers + R2. Upload, organize, share and mount your files over WebDAV — with a bilingual interface.
+<p align="center">
+  <strong>Open-source private cloud storage for Cloudflare Workers + R2.</strong><br>
+  Your own file vault at the edge — no server to maintain, no database to run.
+</p>
 
-[English](README.md) · [中文](README.zh-CN.md) · [Documentation](https://github.com/zqs1qiwan/cloudvault/wiki)
+<p align="center">
+  <a href="https://github.com/zqs1qiwan/cloudvault/wiki">Documentation</a> ·
+  <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
 
-`v1.14.2` · `Cloudflare Workers + R2` · `MIT`
+<p align="center">
+  <code>v1.14.3</code> · <code>Cloudflare Workers</code> · <code>R2</code> · <code>MIT</code>
+</p>
+
+CloudVault is an open-source private cloud drive built on Cloudflare Workers and R2. The Worker serves the app, handles authentication, share links and WebDAV; R2 stores file bytes; KV stores accounts, site settings and the share signing key. Upload, organize and preview files, publish password-protected links or a guest folder, and mount the same vault on your desktop — with English and Chinese UI and light and dark themes.
 
 ## What you get
 
 - **Files and folders** — drag-and-drop upload, nested folders, rename, move, delete, batch ZIP download.
 - **Share links** — password protection, expiry dates, clean public URLs.
-- **Folder sharing** — publish a folder to guests, with per-folder share exclusion.
-- **Guest page** — searchable, sortable public file browser with copy and download buttons.
+- **Guest access** — publish a folder to guests, with per-folder share exclusion.
 - **WebDAV** — mount CloudVault as a network drive with rclone, Finder, Explorer or Cyberduck.
 - **Previews** — images, video, audio, PDF, Markdown and code in the browser.
 - **Two themes, two languages** — dark and light mode; English and Chinese with an instant switch.
+- **Edge-native** — one Worker, one R2 bucket, one KV namespace; no VM or SQL database.
+- **Private by default** — a single vault for your accounts, no public sign-up.
 - **Your brand** — custom site name, logo and favicon from the admin settings.
+
+## How it works
+
+| Piece | Job |
+| --- | --- |
+| Cloudflare Worker | App, auth, share links, WebDAV |
+| R2 | File bytes |
+| KV | Accounts, site settings, share signing key |
+
+## Security
+
+- Passwords are hashed with PBKDF2; sessions use signed, HttpOnly cookies.
+- Login attempts are rate-limited; share links can require a password and expire.
+- `/admin` can sit behind Cloudflare Access if you want an extra gate.
 
 ## Deploy
 
@@ -85,6 +113,14 @@ npm run dev
 ```
 
 Open `http://127.0.0.1:8787/setup` for first-run setup. No `.dev.vars` file is needed.
+
+## Contributing
+
+Issues and pull requests are welcome. Run the checks before opening a PR:
+
+```bash
+npm run check
+```
 
 ## Links
 

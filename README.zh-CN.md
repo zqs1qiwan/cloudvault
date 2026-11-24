@@ -1,27 +1,55 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="public/brand/cloudvault-lockup-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="public/brand/cloudvault-lockup-light.svg">
-  <img alt="CloudVault" src="public/brand/cloudvault-lockup-light.svg" width="720">
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/brand/cloudvault-lockup-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="public/brand/cloudvault-lockup-light.svg">
+    <img alt="CloudVault" src="public/brand/cloudvault-lockup-light.svg" width="720">
+  </picture>
+</p>
 
-# CloudVault
+<h1 align="center">CloudVault</h1>
 
-基于 Cloudflare Workers + R2 的开源私有云盘。上传、整理、分享文件，也能通过 WebDAV 挂载到电脑；界面支持中英双语。
+<p align="center">
+  <strong>基于 Cloudflare Workers + R2 的开源私有云盘。</strong><br>
+  把文件放在边缘节点，不用维护服务器，也不用运行数据库。
+</p>
 
-[中文](README.zh-CN.md) · [English](README.md) · [使用文档](https://github.com/zqs1qiwan/cloudvault/wiki)
+<p align="center">
+  <a href="https://github.com/zqs1qiwan/cloudvault/wiki">使用文档</a> ·
+  <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
+  <a href="README.md">English</a>
+</p>
 
-`v1.14.2` · `Cloudflare Workers + R2` · `MIT`
+<p align="center">
+  <code>v1.14.3</code> · <code>Cloudflare Workers</code> · <code>R2</code> · <code>MIT</code>
+</p>
+
+CloudVault 是一个跑在 Cloudflare Workers + R2 上的开源私有云盘。Worker 负责应用、登录、分享链接和 WebDAV，R2 存文件本体，KV 存账号、站点设置和分享签名密钥。支持上传、整理、在线预览，发布带密码的分享链接或访客目录，也能把同一个文件库通过 WebDAV 挂载到电脑；界面中英双语，支持深色和浅色主题。
 
 ## 主要功能
 
 - **文件与文件夹** —— 拖拽上传、多级文件夹、重命名、移动、删除、批量打包 ZIP 下载。
 - **分享链接** —— 支持密码保护和有效期，公开地址简洁易读。
-- **文件夹分享** —— 整个文件夹开放给访客，也可单独排除某个子文件夹。
-- **访客页面** —— 可搜索、可排序的公开文件列表，带复制链接和下载按钮。
+- **访客访问** —— 整个文件夹开放给访客，也可单独排除某个子文件夹。
 - **WebDAV** —— 用 rclone、Finder、资源管理器或 Cyberduck 挂载为网络硬盘。
 - **在线预览** —— 图片、视频、音频、PDF、Markdown 和代码直接在浏览器中打开。
 - **双主题、双语言** —— 深色 / 浅色模式，中文 / 英文一键切换。
+- **边缘原生** —— 一个 Worker、一个 R2 存储桶、一个 KV 命名空间；不需要虚拟机或 SQL 数据库。
+- **默认私有** —— 所有账号共用一个文件库，没有公开注册入口。
 - **品牌定制** —— 在后台修改站点名称、Logo 和站点图标。
+
+## 工作原理
+
+| 组件 | 职责 |
+| --- | --- |
+| Cloudflare Worker | 应用、登录、分享链接、WebDAV |
+| R2 | 文件本体 |
+| KV | 账号、站点设置、分享签名密钥 |
+
+## 安全
+
+- 密码使用 PBKDF2 哈希；会话使用签名后的 HttpOnly Cookie。
+- 登录尝试有频率限制；分享链接可设置密码和有效期。
+- 需要额外防护时，可以把 `/admin` 放在 Cloudflare Access 后面。
 
 ## 部署
 
@@ -85,6 +113,14 @@ npm run dev
 ```
 
 打开 `http://127.0.0.1:8787/setup` 完成首次初始化。不需要 `.dev.vars` 文件。
+
+## 参与贡献
+
+欢迎提交 Issue 和 Pull Request。提交 PR 前请先运行：
+
+```bash
+npm run check
+```
 
 ## 相关链接
 

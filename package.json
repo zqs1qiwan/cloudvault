@@ -1,8 +1,25 @@
 {
   "name": "cloudvault",
-  "version": "1.14.2",
+  "version": "1.14.3",
   "license": "MIT",
-  "description": "Personal cloud storage platform on Cloudflare Workers + R2",
+  "description": "Open-source private cloud storage for Cloudflare Workers + R2",
+  "keywords": [
+    "cloudflare",
+    "cloudflare-workers",
+    "r2",
+    "webdav",
+    "cloud-storage",
+    "self-hosted",
+    "open-source"
+  ],
+  "homepage": "https://github.com/zqs1qiwan/cloudvault#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zqs1qiwan/cloudvault.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zqs1qiwan/cloudvault/issues"
+  },
   "scripts": {
     "build:css": "tailwindcss -i ./tailwind.css -o ./public/css/tailwind.css --minify",
     "predeploy": "npm run build:css",
