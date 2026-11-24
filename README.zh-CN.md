@@ -2,11 +2,9 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="public/brand/cloudvault-lockup-dark.svg">
     <source media="(prefers-color-scheme: light)" srcset="public/brand/cloudvault-lockup-light.svg">
-    <img alt="CloudVault" src="public/brand/cloudvault-lockup-light.svg" width="720">
+    <img alt="CloudVault" src="public/brand/cloudvault-lockup-light.svg" width="560">
   </picture>
 </p>
-
-<h1 align="center">CloudVault</h1>
 
 <p align="center">
   <strong>基于 Cloudflare Workers + R2 的开源私有云盘。</strong><br>
@@ -14,13 +12,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zqs1qiwan/cloudvault/wiki">使用文档</a> ·
-  <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
-  <a href="README.md">English</a>
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/zqs1qiwan/cloudvault">
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare">
+  </a>
+  <br><br>
+  <a href="https://github.com/zqs1qiwan/cloudvault/tags">
+    <img src="https://img.shields.io/github/v/tag/zqs1qiwan/cloudvault?style=flat-square&label=release&labelColor=0B1018&color=F38020" alt="最新版本">
+  </a>
+  &nbsp;
+  <a href="https://github.com/zqs1qiwan/cloudvault">
+    <img src="https://img.shields.io/badge/GitHub-source-0B1018?style=flat-square&logo=github&logoColor=white&labelColor=F38020" alt="GitHub">
+  </a>
+  &nbsp;
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-0B1018?style=flat-square&labelColor=F38020" alt="MIT">
+  </a>
+  <br>
+  <img src="https://img.shields.io/badge/Cloudflare%20Workers%20%2B%20R2-F38020?style=flat-square&logo=cloudflare&logoColor=white&labelColor=0B1018" alt="Cloudflare Workers + R2">
 </p>
 
 <p align="center">
-  <code>v1.14.3</code> · <code>Cloudflare Workers</code> · <code>R2</code> · <code>MIT</code>
+  <a href="https://github.com/zqs1qiwan/cloudvault/wiki">使用文档</a> ·
+  <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
+  <a href="README.md">English</a>
 </p>
 
 CloudVault 是一个跑在 Cloudflare Workers + R2 上的开源私有云盘。Worker 负责应用、登录、分享链接和 WebDAV，R2 存文件本体，KV 存账号、站点设置和分享签名密钥。支持上传、整理、在线预览，发布带密码的分享链接或访客目录，也能把同一个文件库通过 WebDAV 挂载到电脑；界面中英双语，支持深色和浅色主题。
@@ -52,6 +66,12 @@ CloudVault 是一个跑在 Cloudflare Workers + R2 上的开源私有云盘。Wo
 - 需要额外防护时，可以把 `/admin` 放在 Cloudflare Access 后面。
 
 ## 部署
+
+### 一键部署
+
+点击上方的 **Deploy to Cloudflare** 按钮。Cloudflare 会把仓库克隆到你的 GitHub 账号，自动创建 R2 存储桶和 KV 命名空间，并部署 Worker。完成后打开 `/setup` 创建第一个管理员账号。
+
+### 手动部署
 
 **环境要求：** Node.js 20.19+、Wrangler 4+、已开通 R2 的 Cloudflare 账号。
 

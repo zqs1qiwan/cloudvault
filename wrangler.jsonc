@@ -1,6 +1,5 @@
 {
   "name": "cloudvault",
-  "account_id": "0900cf790220d543f4a1b7b8a0e13a0f",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-11",
   "compatibility_flags": ["nodejs_compat"],

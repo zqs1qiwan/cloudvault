@@ -2,11 +2,9 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="public/brand/cloudvault-lockup-dark.svg">
     <source media="(prefers-color-scheme: light)" srcset="public/brand/cloudvault-lockup-light.svg">
-    <img alt="CloudVault" src="public/brand/cloudvault-lockup-light.svg" width="720">
+    <img alt="CloudVault" src="public/brand/cloudvault-lockup-light.svg" width="560">
   </picture>
 </p>
-
-<h1 align="center">CloudVault</h1>
 
 <p align="center">
   <strong>Open-source private cloud storage for Cloudflare Workers + R2.</strong><br>
@@ -14,13 +12,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zqs1qiwan/cloudvault/wiki">Documentation</a> ·
-  <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
-  <a href="README.zh-CN.md">中文</a>
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/zqs1qiwan/cloudvault">
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare">
+  </a>
+  <br><br>
+  <a href="https://github.com/zqs1qiwan/cloudvault/tags">
+    <img src="https://img.shields.io/github/v/tag/zqs1qiwan/cloudvault?style=flat-square&label=release&labelColor=0B1018&color=F38020" alt="Latest release">
+  </a>
+  &nbsp;
+  <a href="https://github.com/zqs1qiwan/cloudvault">
+    <img src="https://img.shields.io/badge/GitHub-source-0B1018?style=flat-square&logo=github&logoColor=white&labelColor=F38020" alt="GitHub">
+  </a>
+  &nbsp;
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-0B1018?style=flat-square&labelColor=F38020" alt="MIT">
+  </a>
+  <br>
+  <img src="https://img.shields.io/badge/Cloudflare%20Workers%20%2B%20R2-F38020?style=flat-square&logo=cloudflare&logoColor=white&labelColor=0B1018" alt="Cloudflare Workers + R2">
 </p>
 
 <p align="center">
-  <code>v1.14.3</code> · <code>Cloudflare Workers</code> · <code>R2</code> · <code>MIT</code>
+  <a href="https://github.com/zqs1qiwan/cloudvault/wiki">Documentation</a> ·
+  <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
+  <a href="README.zh-CN.md">中文</a>
 </p>
 
 CloudVault is an open-source private cloud drive built on Cloudflare Workers and R2. The Worker serves the app, handles authentication, share links and WebDAV; R2 stores file bytes; KV stores accounts, site settings and the share signing key. Upload, organize and preview files, publish password-protected links or a guest folder, and mount the same vault on your desktop — with English and Chinese UI and light and dark themes.
@@ -52,6 +66,12 @@ CloudVault is an open-source private cloud drive built on Cloudflare Workers and
 - `/admin` can sit behind Cloudflare Access if you want an extra gate.
 
 ## Deploy
+
+### One-click
+
+Use the **Deploy to Cloudflare** button above. Cloudflare clones this repository into your GitHub account, creates the R2 bucket and KV namespace, and deploys the Worker. When it finishes, open `/setup` to create the first administrator account.
+
+### Manual
 
 **Requirements:** Node.js 20.19+, Wrangler 4+, a Cloudflare account with R2 enabled.
 

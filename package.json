@@ -1,6 +1,6 @@
 {
   "name": "cloudvault",
-  "version": "1.14.3",
+  "version": "1.14.4",
   "license": "MIT",
   "description": "Open-source private cloud storage for Cloudflare Workers + R2",
   "keywords": [
@@ -19,6 +19,16 @@
   },
   "bugs": {
     "url": "https://github.com/zqs1qiwan/cloudvault/issues"
+  },
+  "cloudflare": {
+    "bindings": {
+      "VAULT_KV": {
+        "description": "KV namespace for accounts, sessions, share links and site settings. Cloudflare creates it during one-click deploy."
+      },
+      "VAULT_BUCKET": {
+        "description": "R2 bucket for file content. Cloudflare creates it during one-click deploy."
+      }
+    }
   },
   "scripts": {
     "build:css": "tailwindcss -i ./tailwind.css -o ./public/css/tailwind.css --minify",
