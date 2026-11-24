@@ -78,14 +78,14 @@ describe('HTML inline scripts', () => {
     }
   });
 
-  it('links the English and Chinese README versions to each other', () => {
-    const en = readFileSync('README.md', 'utf8');
-    const zh = readFileSync('README.zh-CN.md', 'utf8');
-    expect(en).toContain('README.zh-CN.md');
-    expect(en).toContain('中文');
-    expect(zh).toContain('README.md');
+  it('links the Chinese and English README versions to each other', () => {
+    const zh = readFileSync('README.md', 'utf8');
+    const en = readFileSync('README.en.md', 'utf8');
+    expect(zh).toContain('README.en.md');
     expect(zh).toContain('English');
-    expect(en).toContain('public/brand/cloudvault-lockup-light.svg');
+    expect(en).toContain('README.md');
+    expect(en).toContain('中文');
     expect(zh).toContain('public/brand/cloudvault-lockup-light.svg');
+    expect(en).toContain('public/brand/cloudvault-lockup-light.svg');
   });
 });
