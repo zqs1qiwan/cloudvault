@@ -36,12 +36,14 @@ CloudVault 是一个跑在 Cloudflare Workers + R2 上的开源私有云盘。Wo
 
 ## 界面预览
 
+以下截图来自真实演示实例：文件管理、分享设置与公开访问。
+
 <p align="center">
   <a href="docs/screenshots/dashboard-zh.png"><img src="docs/screenshots/dashboard-zh.png" alt="CloudVault 后台：文件网格、文件夹树、上传与分享入口" width="100%"></a>
 </p>
 
 <p align="center">
-  <a href="docs/screenshots/share-dialog-zh.png"><img src="docs/screenshots/share-dialog-zh.png" alt="分享文件：密码与有效期设置" width="100%"></a>
+  <a href="docs/screenshots/share-dialog-zh.png"><img src="docs/screenshots/share-dialog-zh-crop.png" alt="分享文件：密码与有效期设置" width="100%"></a>
 </p>
 
 <p align="center">

@@ -36,12 +36,14 @@ CloudVault is an open-source private cloud drive built on Cloudflare Workers and
 
 ## Preview
 
+Screenshots from a real demo instance: file management, sharing, and public access.
+
 <p align="center">
   <a href="docs/screenshots/dashboard-en.png"><img src="docs/screenshots/dashboard-en.png" alt="CloudVault dashboard: file grid, folder tree, upload and sharing" width="100%"></a>
 </p>
 
 <p align="center">
-  <a href="docs/screenshots/share-dialog-en.png"><img src="docs/screenshots/share-dialog-en.png" alt="Share dialog with password and expiry" width="100%"></a>
+  <a href="docs/screenshots/share-dialog-en.png"><img src="docs/screenshots/share-dialog-en-crop.png" alt="Share dialog with password and expiry" width="100%"></a>
 </p>
 
 <p align="center">
