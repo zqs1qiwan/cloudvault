@@ -13,18 +13,18 @@
     <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare">
   </a><br>
   <a href="https://github.com/zqs1qiwan/cloudvault/tags">
-    <img src="https://img.shields.io/github/v/tag/zqs1qiwan/cloudvault?style=flat-square&label=release&labelColor=0B1018&color=F38020&cacheSeconds=300" alt="最新版本">
+    <img src="docs/badges/release.svg" alt="最新版本">
   </a>
   &nbsp;
   <a href="https://github.com/zqs1qiwan/cloudvault">
-    <img src="https://img.shields.io/github/stars/zqs1qiwan/cloudvault?style=flat-square&label=stars&logo=github&logoColor=white&labelColor=0B1018&color=F38020" alt="GitHub stars">
+    <img src="docs/badges/stars.svg" alt="GitHub stars">
   </a>
   &nbsp;
   <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-0B1018?style=flat-square&labelColor=F38020" alt="MIT">
+    <img src="docs/badges/license.svg" alt="MIT">
   </a>
   <br>
-  <img src="https://img.shields.io/badge/Cloudflare%20Workers%20%2B%20R2-F38020?style=flat-square&logo=cloudflare&logoColor=white&labelColor=0B1018" alt="Cloudflare Workers + R2">
+  <img src="docs/badges/platform.svg" alt="Cloudflare Workers + R2">
   <br>
   <a href="https://github.com/zqs1qiwan/cloudvault/wiki">使用文档</a> ·
   <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
@@ -36,10 +36,14 @@ CloudVault 是一个跑在 Cloudflare Workers + R2 上的开源私有云盘。Wo
 
 ## 界面预览
 
-以下截图来自真实演示实例：文件管理、分享设置与公开访问。
+以下截图来自真实演示实例：文件管理、公开访问、分享设置与单文件分享页。
 
 <p align="center">
   <a href="docs/screenshots/dashboard-zh.png"><img src="docs/screenshots/dashboard-zh.png" alt="CloudVault 后台：文件网格、文件夹树、上传与分享入口" width="100%"></a>
+</p>
+
+<p align="center">
+  <a href="docs/screenshots/guest-zh.png"><img src="docs/screenshots/guest-zh.png" alt="未登录的公开分享页：共享文件夹与文件列表" width="100%"></a>
 </p>
 
 <p align="center">

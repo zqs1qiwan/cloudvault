@@ -13,18 +13,18 @@
     <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare">
   </a><br>
   <a href="https://github.com/zqs1qiwan/cloudvault/tags">
-    <img src="https://img.shields.io/github/v/tag/zqs1qiwan/cloudvault?style=flat-square&label=release&labelColor=0B1018&color=F38020&cacheSeconds=300" alt="Latest release">
+    <img src="docs/badges/release.svg" alt="Latest release">
   </a>
   &nbsp;
   <a href="https://github.com/zqs1qiwan/cloudvault">
-    <img src="https://img.shields.io/github/stars/zqs1qiwan/cloudvault?style=flat-square&label=stars&logo=github&logoColor=white&labelColor=0B1018&color=F38020" alt="GitHub stars">
+    <img src="docs/badges/stars.svg" alt="GitHub stars">
   </a>
   &nbsp;
   <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-0B1018?style=flat-square&labelColor=F38020" alt="MIT">
+    <img src="docs/badges/license.svg" alt="MIT">
   </a>
   <br>
-  <img src="https://img.shields.io/badge/Cloudflare%20Workers%20%2B%20R2-F38020?style=flat-square&logo=cloudflare&logoColor=white&labelColor=0B1018" alt="Cloudflare Workers + R2">
+  <img src="docs/badges/platform.svg" alt="Cloudflare Workers + R2">
   <br>
   <a href="https://github.com/zqs1qiwan/cloudvault/wiki">Documentation</a> ·
   <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
@@ -36,10 +36,14 @@ CloudVault is an open-source private cloud drive built on Cloudflare Workers and
 
 ## Preview
 
-Screenshots from a real demo instance: file management, sharing, and public access.
+Screenshots from a real demo instance: file management, public access, sharing, and a single-file share page.
 
 <p align="center">
   <a href="docs/screenshots/dashboard-en.png"><img src="docs/screenshots/dashboard-en.png" alt="CloudVault dashboard: file grid, folder tree, upload and sharing" width="100%"></a>
+</p>
+
+<p align="center">
+  <a href="docs/screenshots/guest-en.png"><img src="docs/screenshots/guest-en.png" alt="Public guest page: shared folders and files without signing in" width="100%"></a>
 </p>
 
 <p align="center">
