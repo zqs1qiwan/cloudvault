@@ -17,11 +17,11 @@
   </a>
   <br><br>
   <a href="https://github.com/zqs1qiwan/cloudvault/tags">
-    <img src="https://img.shields.io/github/v/tag/zqs1qiwan/cloudvault?style=flat-square&label=release&labelColor=0B1018&color=F38020" alt="Latest release">
+    <img src="https://img.shields.io/github/v/tag/zqs1qiwan/cloudvault?style=flat-square&label=release&labelColor=0B1018&color=F38020&cacheSeconds=300" alt="Latest release">
   </a>
   &nbsp;
   <a href="https://github.com/zqs1qiwan/cloudvault">
-    <img src="https://img.shields.io/badge/GitHub-source-0B1018?style=flat-square&logo=github&logoColor=white&labelColor=F38020" alt="GitHub">
+    <img src="https://img.shields.io/github/stars/zqs1qiwan/cloudvault?style=flat-square&label=stars&logo=github&logoColor=white&labelColor=0B1018&color=F38020" alt="GitHub stars">
   </a>
   &nbsp;
   <a href="LICENSE">
