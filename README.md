@@ -163,7 +163,7 @@ npm run dev
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request。提交 PR 前请先运行：
+欢迎提交 Issue 和 Pull Request。开始前请阅读 [贡献指南](CONTRIBUTING.md)；安全问题请按 [安全策略](SECURITY.md) 私下报告，不要开公开 Issue。提交 PR 前请先运行：
 
 ```bash
 npm run check

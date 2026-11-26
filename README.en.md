@@ -163,7 +163,7 @@ Open `http://127.0.0.1:8787/setup` for first-run setup. No `.dev.vars` file is n
 
 ## Contributing
 
-Issues and pull requests are welcome. Run the checks before opening a PR:
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; report security issues privately according to [SECURITY.md](SECURITY.md). Run the checks before opening a PR:
 
 ```bash
 npm run check

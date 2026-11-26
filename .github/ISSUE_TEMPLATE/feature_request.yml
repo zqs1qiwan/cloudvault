@@ -1,0 +1,53 @@
+name: Feature request
+description: Suggest a capability or workflow for CloudVault.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please start with the user problem, not only the implementation you have in mind. CloudVault deliberately stays small and runs on Cloudflare Workers + R2.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the workflow that is currently difficult or impossible.
+      placeholder: I want to give a client a time-limited folder link without creating an account.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would a good outcome look like?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, or existing tools that solve this differently.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - File management
+        - Sharing and guest access
+        - WebDAV
+        - Preview
+        - Admin and accounts
+        - Deployment
+        - Documentation and translations
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and discussions first.
+          required: true
+        - label: This request fits a single-tenant, Cloudflare-native file tool.
+          required: true

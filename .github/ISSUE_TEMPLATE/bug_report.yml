@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a reproducible problem with CloudVault.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve CloudVault. Please remove cookies, tokens, passwords and bucket names from logs before posting.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the actual behavior and what you expected instead.
+      placeholder: Uploading a large file fails after the progress bar reaches 100%.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest sequence that reliably triggers the problem.
+      placeholder: |
+        1. Deploy from the button
+        2. Open /admin
+        3. Upload a 200 MB file
+        4. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment method
+      options:
+        - Deploy to Cloudflare button
+        - Manual Wrangler deployment
+        - Local development
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: CloudVault version
+      description: The version shown in the dashboard footer or package.json.
+      placeholder: v1.14.7
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser or client
+      description: Browser version, operating system, or WebDAV client if relevant.
+      placeholder: Chrome 142 on Windows 11 / Finder on macOS / rclone 1.70
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste only the relevant lines. Remove account IDs, cookies, tokens and bucket names.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I removed secrets and personal data from this report.
+          required: true
