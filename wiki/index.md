@@ -10,11 +10,11 @@ hero:
     alt: CloudVault
   actions:
     - theme: brand
+      text: 一键部署
+      link: https://deploy.workers.cloudflare.com/?url=https://github.com/zqs1qiwan/cloudvault
+    - theme: alt
       text: 5 分钟开始
       link: /guide/quick-start
-    - theme: alt
-      text: 手动部署
-      link: /guide/manual-deploy
     - theme: alt
       text: GitHub
       link: https://github.com/zqs1qiwan/cloudvault
@@ -85,9 +85,7 @@ features:
     <div class="quick-card">
       <h3>一键部署</h3>
       <p>已有 Cloudflare 账号时，最快的方式是从仓库直接部署。Cloudflare 会创建 R2 存储桶和 KV 命名空间。</p>
-      <pre><code>Deploy to Cloudflare
-→ 打开 /setup
-→ 创建第一个管理员</code></pre>
+      <DeployButton />
     </div>
     <div class="quick-card">
       <h3>本地跑起来</h3>

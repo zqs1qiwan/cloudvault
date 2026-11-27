@@ -217,6 +217,7 @@ body {
 .VPHero .actions {
   margin-top: 30px !important;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .VPHero .VPButton.brand {
@@ -420,13 +421,14 @@ body {
 
 .home-quick {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
   margin: 18px 0 6px;
 }
 
 .home-quick .quick-card {
+  min-width: 0;
   border: 1px solid var(--vp-c-divider);
   border-radius: 10px;
   padding: 18px;
@@ -538,7 +540,7 @@ body {
   .home-shot-grid,
   .docs-grid,
   .home-quick {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .home-shot.is-wide {
@@ -560,6 +562,24 @@ body {
     width: 100%;
     overflow-x: auto;
     white-space: nowrap;
+  }
+}
+
+@media (max-width: 380px) {
+  .VPHero .actions .action {
+    align-items: stretch;
+  }
+
+  .VPHero .actions .action .VPButton {
+    width: 100%;
+  }
+
+  .VPHero .actions .action:first-child {
+    flex-basis: 100%;
+  }
+
+  .VPHero .actions .action:nth-child(n + 2) {
+    flex: 1;
   }
 }
 

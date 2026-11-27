@@ -12,7 +12,9 @@
 
 ## 路径 A：一键部署
 
-1. 打开仓库的 [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/zqs1qiwan/cloudvault) 按钮。
+<DeployButton />
+
+1. 点击上面的 **Deploy to Cloudflare** 按钮。
 2. 按 Cloudflare 的引导授权 GitHub，选择要创建的项目名。
 3. Cloudflare 会自动创建 R2 存储桶和 KV 命名空间，并部署 Worker。
 4. 部署完成后打开 Worker 地址，页面会跳转到 `/setup`。

@@ -1,6 +1,8 @@
 # 一键部署
 
-CloudVault 在 README 顶部提供 **Deploy to Cloudflare** 按钮。这是给已经有 Cloudflare 账号的人准备的路径：不需要本地安装 Wrangler，也不需要先创建资源。
+CloudVault 为已经有 Cloudflare 账号的人准备了一条不必安装 Wrangler 的路径：点击下面的按钮，Cloudflare 会从仓库创建项目、资源并完成部署。
+
+<DeployButton />
 
 ## 它会做什么
 
