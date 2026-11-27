@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="100" viewBox="61.5 15.5 680 100" aria-label="CloudVault">
+  <g transform="translate(56 -14) scale(0.3125)">
+    <g transform="translate(-38.4 -38.4) scale(1.15)">
+      <path fill="#F38020" fill-rule="evenodd" d="M140 360C105 360 78 333 78 300C78 266 105 240 139 240C152 184 200 144 258 144C322 144 374 196 378 250C414 256 440 290 440 320C440 342 423 360 398 360ZM256 222A24 24 0 0 1 271.87 264L272 313Q272 320 265 320L247 320Q240 320 240 313L240.13 264A24 24 0 0 1 256 222Z"/>
+    </g>
+  </g>
+  <text x="250" y="100" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="94" font-weight="700" letter-spacing="-1.6"><tspan fill="#F38020">Cloud</tspan>Vault</text>
+</svg>

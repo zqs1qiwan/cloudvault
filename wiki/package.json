@@ -1,0 +1,15 @@
+{
+  "name": "cloudvault-docs",
+  "version": "1.14.7",
+  "private": true,
+  "type": "module",
+  "description": "CloudVault documentation site",
+  "scripts": {
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

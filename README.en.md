@@ -26,8 +26,8 @@
   <br>
   <img src="docs/badges/platform.svg" alt="Cloudflare Workers + R2">
   <br>
-  <a href="https://github.com/zqs1qiwan/cloudvault/wiki">Documentation</a> ·
-  <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
+  <a href="https://zqs1qiwan.github.io/cloudvault/">Documentation</a> ·
+  <a href="https://zqs1qiwan.github.io/cloudvault/features/webdav">WebDAV</a> ·
   <a href="README.md">中文</a> ·
   <strong>English</strong>
 </p>
@@ -171,10 +171,10 @@ npm run check
 
 ## Links
 
-- [Documentation and guides](https://github.com/zqs1qiwan/cloudvault/wiki)
-- [Installation](https://github.com/zqs1qiwan/cloudvault/wiki/Installation)
-- [WebDAV guide](https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV)
-- [FAQ](https://github.com/zqs1qiwan/cloudvault/wiki/FAQ)
-- [Changelog](https://github.com/zqs1qiwan/cloudvault/wiki/Changelog)
+- [Documentation and guides](https://zqs1qiwan.github.io/cloudvault/)
+- [Quick start](https://zqs1qiwan.github.io/cloudvault/guide/quick-start)
+- [WebDAV guide](https://zqs1qiwan.github.io/cloudvault/features/webdav)
+- [FAQ](https://zqs1qiwan.github.io/cloudvault/help/faq)
+- [Changelog](https://zqs1qiwan.github.io/cloudvault/help/changelog)
 
 Licensed under the [MIT License](LICENSE).

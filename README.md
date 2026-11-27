@@ -26,8 +26,8 @@
   <br>
   <img src="docs/badges/platform.svg" alt="Cloudflare Workers + R2">
   <br>
-  <a href="https://github.com/zqs1qiwan/cloudvault/wiki">使用文档</a> ·
-  <a href="https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV">WebDAV</a> ·
+  <a href="https://zqs1qiwan.github.io/cloudvault/">使用文档</a> ·
+  <a href="https://zqs1qiwan.github.io/cloudvault/features/webdav">WebDAV</a> ·
   <strong>简体中文</strong> ·
   <a href="README.en.md">English</a>
 </p>
@@ -171,10 +171,10 @@ npm run check
 
 ## 相关链接
 
-- [使用文档](https://github.com/zqs1qiwan/cloudvault/wiki)
-- [安装指南](https://github.com/zqs1qiwan/cloudvault/wiki/Installation)
-- [WebDAV 指南](https://github.com/zqs1qiwan/cloudvault/wiki/WebDAV)
-- [常见问题](https://github.com/zqs1qiwan/cloudvault/wiki/FAQ)
-- [更新日志](https://github.com/zqs1qiwan/cloudvault/wiki/Changelog)
+- [使用文档](https://zqs1qiwan.github.io/cloudvault/)
+- [快速开始](https://zqs1qiwan.github.io/cloudvault/guide/quick-start)
+- [WebDAV 指南](https://zqs1qiwan.github.io/cloudvault/features/webdav)
+- [常见问题](https://zqs1qiwan.github.io/cloudvault/help/faq)
+- [更新日志](https://zqs1qiwan.github.io/cloudvault/help/changelog)
 
 本项目采用 [MIT 许可证](LICENSE)。
